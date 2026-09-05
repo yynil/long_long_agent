@@ -1281,3 +1281,9 @@ Sprint 0 结束定义：G0 全部满足，且能够用一个极小的 synthetic 
 - 验证：全仓127 tests通过（4.63s），Ruff check/format通过（124文件），diff检查通过；测试覆盖固定梯度重放无别名/全量优化器一致、未知字段/非有限/改变base或输入拒绝、逐张量分母、包络/参数族拒绝、artifact hash/provenance，以及manifest离线引用闭合schema。首次Ruff发现新薄入口未设执行权限，已修正；实现审查补齐GPU moment移至CPU比较，未运行GPU或依据新结果改阈值。
 - 文档验证：24份Markdown、24个Mermaid、116个本地链接全部通过；P0-06同步更新覆盖数。
 - 执行计划：提交此协议与实现后，固定重建环境、LM/CUDA/build路径同Step085，依次独立进程运行 `--run-root <data root>/artifacts/training_preflight/adr020_independent_v1 --phase reference|fixed|native`；前层非passed不执行下一层。保存全部实际结果后再更新状态。
+
+### 2026-09-05 / Step 091：首次输入顺序断言失败，保留零更新证据
+
+- 关联工作：T-07；协议/实现commit `a55ef8a` 已推送个人private main。按Step090命令启动 `adr020_independent_v1/reference`，重建输入通过，随后顺序断言ValueError；未加载模型、未执行forward/backward/optimizer，steps为空，GPU退出后0MiB。intent/result完整保留。
+- 原因与最小修复：`TokenBudgetPackSampler.__iter__` 的已测公共接口返回tuple，新检查错误地用list元素比较；实际行顺序未改变。抽出 `confirmation_sampler`，检查改为 `[(0,), (1,)]`，新增真实长度7484/6643的tuple接口及反序拒绝测试。不改数据选择、seed、梯度/恢复预算或原配置SHA。
+- 下一步：通过全仓验证、提交修复后，新目录 `adr020_independent_v2` 从reference重新执行；v1不覆盖、不更名为成功。

@@ -18,13 +18,33 @@ from src.training.resume_comparison import (
     optimizer_comparison,
     tensor_comparison,
 )
-from src.training.resume_confirmation import checked_gradients, load_protocol, validate_manifest
+from src.training.resume_confirmation import (
+    checked_gradients,
+    confirmation_sampler,
+    load_protocol,
+    validate_manifest,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def protocol():
     return load_protocol(ROOT / "configs/a0_resume_confirmation.yaml")[0]
+
+
+def test_confirmation_sampler_uses_real_tuple_contract_and_checks_order():
+    from types import SimpleNamespace
+
+    config, base = load_protocol(ROOT / "configs/a0_resume_confirmation.yaml")
+    samples = [
+        SimpleNamespace(token_ids=(0,) * length, sample_id=str(i))
+        for i, length in enumerate((7485, 6644))
+    ]
+    sampler = confirmation_sampler(samples, base, config)
+    assert list(sampler) == [(0,), (1,)]
+    assert [r.real_tokens for r in sampler.plan().rank_rows] == [7484, 6643]
+    with pytest.raises(ValueError, match="order"):
+        confirmation_sampler(list(reversed(samples)), base, config)
 
 
 def optimizer(model):

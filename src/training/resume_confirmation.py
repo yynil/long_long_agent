@@ -69,6 +69,20 @@ def validate_manifest(manifest: dict) -> None:
     jsonschema.Draft202012Validator(schema, registry=registry).validate(manifest)
 
 
+def confirmation_sampler(samples: list, base: dict, protocol: dict):
+    sampler = TokenBudgetPackSampler(
+        [len(s.token_ids) - 1 for s in samples],
+        [s.sample_id for s in samples],
+        max_tokens=base["max_tokens"],
+        alignment=base["alignment"],
+        seed=protocol["training_seed"],
+        shuffle=False,
+    )
+    if list(sampler) != [(0,), (1,)]:
+        raise ValueError("confirmation row order changed")
+    return sampler
+
+
 def checked_gradients(path: Path, digest: str, provenance: dict, batch_hash: str) -> dict:
     if sha256_file(path) != digest:
         raise ValueError("gradient artifact hash mismatch")
@@ -215,16 +229,7 @@ def run_confirmation(
         # Revalidate the entire immutable 128-input plan; base YAML remains untouched.
         all_samples, _, tokenizer = reconstruct_inputs({**base, "sample_count": 128}, data_root)
         samples = [all_samples[i] for i in protocol["sample_indices"]]
-        sampler = TokenBudgetPackSampler(
-            [len(s.token_ids) - 1 for s in samples],
-            [s.sample_id for s in samples],
-            max_tokens=base["max_tokens"],
-            alignment=base["alignment"],
-            seed=protocol["training_seed"],
-            shuffle=False,
-        )
-        if list(sampler) != [[0], [1]]:
-            raise ValueError("confirmation row order changed")
+        sampler = confirmation_sampler(samples, base, protocol)
         random.seed(protocol["training_seed"])
         np.random.seed(protocol["training_seed"])
         torch.manual_seed(protocol["training_seed"])
