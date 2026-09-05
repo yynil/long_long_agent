@@ -4,6 +4,8 @@
 > 数据根：`/home/yueyulin/data/long_long_agent`  
 > 状态：固定版本下载、结构审计和 adapter preview 完成；尚未形成可训练的 A0 release。
 
+历史范围说明：上述状态与第 4～5 节保留 2026-09-04 的评估时点，不是当前数据总状态。2026-09-05 已发布 A0，但未完成五来源全量正式转换；当前覆盖范围见[数据状态与质量报告](data_status_report.md)，版本证据见[A0 验收报告](a0_release_assessment.md)。
+
 ## 数据处理架构图
 
 ```mermaid

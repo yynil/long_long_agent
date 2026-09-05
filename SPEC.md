@@ -3,7 +3,8 @@
 > 状态：P0 准备阶段 / A0 v1 已验收、BF16 原因已隔离、ADR-019 本机独立确认通过 / 真实 overfit 与 GPU 恢复待验收，规模化训练 No-Go<br>
 > 规格版本：0.11.1<br>
 > 创建日期：2026-09-04  
-> 设计依据：[`rwkv7_agent_only_data_training_plan_zh.md`](./rwkv7_agent_only_data_training_plan_zh.md)
+> 统一入口：[`rwkv7_agent_only_data_training_plan_zh.md`](./rwkv7_agent_only_data_training_plan_zh.md)<br>
+> 设计依据：[原始研究设计正文](docs/research_design_zh.md)
 
 ## 架构图（审计基准）
 
@@ -55,7 +56,7 @@ flowchart LR
 2. 维护数据、模型、训练三个工作流的阶段计划；
 3. 按时间顺序记录每一步执行、决策、证据和结果。
 
-任何影响数据口径、模型结构、训练方法、评测、依赖版本或阶段门的变更，都必须先更新本文档。原始研究设计保持只读；实现细节和执行状态以本文档为准。
+任何影响数据口径、模型结构、训练方法、评测、依赖版本或阶段门的变更，都必须先更新本文档。[原始研究设计正文](docs/research_design_zh.md)保持只读；实现细节和执行状态以本文档为准。统一入口维护跨文档链接，专题报告在 `reports/` 独立维护；本文记录简短证据、产物链接和验收状态，不复制报告正文。
 
 ## 2. 项目目标与边界
 
@@ -249,7 +250,7 @@ artifacts/models/<run_id>/
 | P0-03 | 建立 Python/CUDA 依赖锁 | lockfile + 容器定义 | 新环境可完成最小前向 | 进行中：66包distribution hash锁、新环境重建/105项测试/全新CUDA cache前向通过；远程环境待建 |
 | P0-04 | 冻结 held-out 边界 | `data/heldout/*.txt` | 分组规则与污染测试就绪 | 完成：五来源 42,982 group 的 repo/task 90/5/5 hash split、列表校验与 canonical v1.1 接入通过 |
 | P0-05 | 固化数据、训练、评测配置 schema | `schemas/` | CI 可校验所有配置 | 进行中：source registry 与四表 schema 已建立 |
-| P0-06 | 建立跨文档架构图审计基线 | 全部 Markdown 文档；`docs/diagrams/*.png` | 每份文档有精确 Mermaid 图；模型有从系统到源码符号的手绘图并完成链接/图像校验 | 完成：15 份文档各含可解析 Mermaid；5 张 ImageGen 手绘图完成视觉、链接、尺寸与 hash 校验 |
+| P0-06 | 建立跨文档架构图审计基线 | 全部 Markdown 文档；`docs/diagrams/*.png` | 每份文档有精确 Mermaid 图；模型有从系统到源码符号的手绘图并完成链接/图像校验 | 完成：22 份文档/22 个 Mermaid/92 个本地链接通过（Step082）；5 张手绘图沿用既有视觉、尺寸与 hash 验收 |
 
 #### 已确认的资源分工
 
@@ -278,6 +279,8 @@ artifacts/models/<run_id>/
 | D-12 | 产出 A1 50K 与 latent A2 20K curated 子集 | G1,D-11 | 配比和 failure taxonomy 达标 | 阻塞于 G1 |
 
 D-09 本轮完成范围是 Step 057 冻结的 Open-SWE 两教师 A0 候选准入；五来源索引只扩大污染比对范围，不代表全量 PII/secret/许可检查通过。任何后续来源或 release 都必须重新通过同一准入链，D-01 的其余 repo 许可审计仍未完成。
+
+数据覆盖范围、去重算法及限制见[数据状态与质量报告](reports/data_status_report.md)；固定 A0 数量、长度与输入计划见[A0 验收报告](reports/a0_release_assessment.md)。
 
 首批 A1 目标配比：15% simple no-think、25% normal tool use、25% explicit long-think success、15% verification/finish、15% failure/recovery、5% long-term constraint recall。A2 目标配比：35% think-beats-no-think、20% teacher disagreement、20% recovery/replan、15% verification/finish、10% long-memory dependency。
 
@@ -1191,3 +1194,36 @@ Sprint 0 结束定义：G0 全部满足，且能够用一个极小的 synthetic 
 - 后续只读检查：现有packed trainer/FP32-master checkpoint API及固定DeepSpeed激活重算路径已定位；尚未对真实8K样本执行forward/backward、优化器更新或GPU中断恢复，不能把本轮推理峰值当训练容量结论。
 - 产物/交付：更新README、SPEC、数值诊断/A0后续报告及小型确认汇总，推送用户个人private main；没有新增大数据或模型到Git，没有修改基座/原BF16运行策略，没有启动M0或M2。
 - 当前结论：用户指定的BF16原因条件已经由精度干预证据满足，ADR-019已接受且本机M-02独立工程确认通过；剩余步骤按真实训练与环境阶段门推进，不再因该ADR请求用户确认。
+
+### 2026-09-05 / Step 080：确认下一步工作计划，不启动新实验
+
+- 关联工作：P0-03/P0-05、M-08/M-09、T-03/T-04/T-05/T-07/T-08/T-09；用户本轮请求确认下一步计划，不视为要求本轮启动训练。按AGENTS→SPEC→原研究设计核对，并读取A0验收、真实输入计划及可执行fixture报告；Git检查起始工作区干净，基线为 `50be49f2ca0917dc1cd39e062c62966228fef80a`。
+- 当前阶段与依赖：仍处准备阶段收尾；A0与本机M-02已通过，真实32/128 overfit、GPU恢复、完整Agent loop、G1尚未通过。ADR-019不再等待确认，也不把本机工程通过外推为远程SM89/DDP或G0整体完成。
+- 顺序1——冻结真实训练验收配置并做8K tiny smoke（P0-05、M-08、T-03/T-05/T-07/T-08）：使用固定0.4B、本机3090 Ti、A0 train-only输入计划 `c095653410863582b60b73c1324a080837b5c580e0d1c8ac890de0c5205437e9`、seed20260905；先登记学习率、步数/预算、loss下降及异常停止阈值，再执行真实forward/backward/optimizer update。保留官方BF16、FP32-master、packed边界与保护上下文；记录峰值显存、有效/loss/alignment token、吞吐和可比padded baseline。8K推理峰值不作为训练容量证据；若需激活重算，先验证输出/梯度一致性，禁止静默截掉保护上下文或改为head-only冒充全参数通过。
+- 顺序2——GPU恢复验收后依次跑真实32→128 overfit（T-03/T-05/T-07）：先比较连续运行与保存/重启后的下一步，核对模型、FP32 master、优化器状态、RNG、sampler下一批、计数器与loss；容差在比较前登记，未知差异须诊断。恢复通过后才执行较长overfit，按事前阈值验收loss曲线和稳定性，保留全部样本与失败。首个完整交付是可复现run manifest、真实训练报告与GPU恢复对照；工程记忆测试不是Agent收益，失败轨迹也不自动成为正式SFT正例。
+- 顺序3——补齐可执行Agent闭环及G0清单（T-04/T-08、P0-03/P0-05）：从现有dev fixture `adamchainz__flake8-comprehensions-179` 开始，接通生成→严格tool-call解析→隔离执行→真实observation→slow state更新→verifier/终止。验收snapshot可重置、slow/fast隔离、gold与未来Git历史不可见、无效动作/超时/循环/缺失测试计入失败；buggy/gold verifier结果不能充当模型成功。逐项复核G0与最小端到端链路，未满足不宣布Sprint 0完成。
+- 顺序4——1.5B M0开发pilot与独立G1（T-04/T-05/T-09）：依赖上述本机工程闭环及适用G0验收，先选20～30个dev任务比较no-think、short-think、long-think、未训练fixed-K，同checkpoint、可执行snapshot、sampling和工具预算，报告single-trajectory成功率、进度、回归、有效率与模型/工具/端到端成本。若主要问题为格式，按ADR-018用合格train数据做受限格式SFT后同checkpoint重测；独立确认集不得用于调参。根据pilot事前冻结G1主指标、困难任务定义、统计单位、样本量、阈值与停止规则，再运行独立确认，pilot不充当确认结果。
+- 后续条件路线：只有G1通过才推进D-11/D-12 paired snapshot与M2 fixed-K V0，并遵守G2及后续各自验收条件；G3前不扩大counterfactual fork、value/adaptive-K或V1。远程三卡环境重建、SM89 packed parity、NCCL/NUMA和DDP/rank恢复须在远程训练前独立验收，不以本机结果替代；暂不直接扩大模型规模或假设三卡显存可连续相加。
+- 统一停止条件：NaN/非有限梯度、OOM、事前定义的loss异常、无法解释的恢复差异、状态串扰或数据/环境泄漏，停止相应实验并保存证据；G1不证明可重复thinking收益则停在baseline诊断，不扩大latent。训练时长与正式资源预算待真实8K吞吐实测后估算，不预报未经验证的工期。
+- 产物/验证/状态：仅追加本计划日志；`git diff --check`及差异范围检查通过。没有运行训练、重新跑GPU数值实验、启动远程作业、commit/push或修改工作项完成状态；下一执行动作是顺序1的配置与run registry实现。
+
+### 2026-09-05 / Step 081：数据覆盖复核与多文档整理计划
+
+- 关联工作：D-01..10、P0-06；用户要求说明是否全量验证/去重/统一格式，新增独立数据报告，并以 `rwkv7_agent_only_data_training_plan_zh.md` 为多文档统一入口。本轮不启动训练或全量数据转换。
+- 输入/现状：按AGENTS→SPEC→原设计核对，读取五来源registry、内容索引manifest、A0准入/质量/污染/许可报告及相关实现；起始未提交改动仅为上一轮Step080，保留。全池432,695行索引完成不等于全量质量准入；A0仅扫描6,236候选并接纳1,000条。
+- 文档安排：新增独立数据状态报告；原993行研究设计正文迁至 `docs/research_design_zh.md`，只调整相对链接，不改研究内容。原文件改为精简导航入口，SPEC继续承载规格/ADR/执行索引，不复制报告正文；同步README及历史报告的范围提示，避免旧状态被误读为当前结论。此移动与导航变更由用户本轮明确要求，不修改冻结研究路线或数据阈值。
+- 验收/停止：以现有机器产物复核统计分母、去重算法与限制，重新执行A0只读完整性验收；原文迁移保持内容可比，所有本地链接/Mermaid可解析，报告不含轨迹正文或敏感命中。若发现证据不一致，记录限制而非宣称全量完成；D-01及A0以外质量/转换工作不据文档完成而关闭。
+
+### 2026-09-05 / Step 082：独立数据报告与统一入口验收
+
+- 关联工作：D-01..10、P0-06；产物为 `reports/data_status_report.md`、42行统一入口及迁移后的993行 `docs/research_design_zh.md`。同步README、AGENTS读取路径、SPEC职责与三份旧数据报告的范围提示；原研究正文除图片相对链接外逐字节相同。
+- 输入与检查：重建环境执行 `scripts/build_a0_release.py verify --release /home/yueyulin/data/long_long_agent/releases/a0-v1`，exit0；Git/local manifest SHA均为 `95b9ba66e2552737779845621e0cb89cba038ab25ba30b2b93a71f677d20b6e2`。用 `verified_inventory` 复算77个原始Parquet的SHA/字节数，并用Parquet metadata复核432,695行，全部匹配固定下载/索引清单；索引文件SHA通过。
+- 范围复核：只读SQLite核对任务/原始消息指纹及跨split分母；Parquet聚合核对A0唯一任务/decision、每episode数量和group交集；`jq -s`汇总quarantine且不打印记录正文。结论及算法限制集中写入数据报告：全池索引不等于全量质量/近重复/正式转换完成，未准入也不全是质量失败。没有重跑全池内容清洗、修改raw或重建release。
+- 文档QA：Node复用已有Mermaid/jsdom验证22份Markdown、22个图和92个本地链接，全部通过；通过 `git show HEAD:rwkv7_agent_only_data_training_plan_zh.md` 与迁移文件规范化单个图片路径后的内容比较证明原文保留。首次合并move/add同路径补丁被工具原子拒绝，拆分后成功，无原文丢失；一次错误的registry候选路径读取失败后改用实际 `configs/sources.yaml`，未影响数据。
+- 回归与状态：全仓112 tests passed（4.24s），`git diff --check`通过；只修改Markdown，保留Step080既有未提交记录。P0-06更新文档覆盖数字；D-01仍进行中、D-09仅A0范围完成、D-11/D-12仍受G1阻塞。未启动训练/远程作业，未commit/push；下一步工程训练与未来数据扩源分别按Step080和数据报告第7节执行。
+
+### 2026-09-05 / Step 083：继续文档交付与真实训练工程预检
+
+- 关联工作：P0-00/P0-05/P0-06、M-08、T-03/T-05/T-07/T-08；用户要求继续，先交付Step080～082文档，再按已确认顺序推进本机0.4B真实8K tiny smoke与GPU恢复验证，不启动全量数据扩源或规模化训练。
+- 交付检查：Git作者仍为 `yynil <yueyu.lin@me.com>`，origin指向 `yynil/long_long_agent`；GitHub API确认private=true、默认main。只添加九个已核对Markdown文件，原始研究正文保留；沿用Step082的112测试与文档QA，提交前复核差异，不上传数据/model/blob。
+- 工程依赖：A0、固定128输入计划、本机M-02已通过；读取现有packed trainer、FP32-master、checkpoint与输入恢复接口，下一步先实现闭合配置/run manifest及事前验收阈值，再执行最小GPU实验。若OOM、非有限loss/梯度或恢复不一致，保存报告并停止该实验，不静默缩短任务上下文或切换训练范围。

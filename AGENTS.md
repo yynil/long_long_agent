@@ -29,7 +29,7 @@ flowchart TD
 
 1. `AGENTS.md`：工作约束；
 2. `SPEC.md`：当前规格、阶段、决策与执行台账；
-3. `rwkv7_agent_only_data_training_plan_zh.md`：原始研究设计。
+3. `rwkv7_agent_only_data_training_plan_zh.md`：统一文档入口；随后读取其中链接的 `docs/research_design_zh.md` 原始研究设计正文。
 
 开始任何工作前，在 `SPEC.md` 中确认：当前阶段、目标工作项 ID、依赖、验收条件和停止条件。若请求与原始设计冲突，不要静默折中；先在 `SPEC.md` 提议 ADR，并明确指出冲突。
 
