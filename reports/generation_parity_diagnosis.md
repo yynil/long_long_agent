@@ -1,6 +1,6 @@
 # Generation parity：数值原因与验收边界
 
-日期：2026-09-05。关联 M-02/M-08、SPEC Step 060～064、提议 ADR-019。
+日期：2026-09-05。关联 M-02/M-08、SPEC Step 060～064及073～076。ADR-019已按用户BF16原因条件授权接受；独立确认尚未完成。
 
 结论：原生 BF16 逐 token 路径没有通过事前登记的 KL 门。整段 prefill 与官方实现逐值一致，K=0 和重复生成一致。进一步匹配矩阵运算形状后，两模型的递推 logits 逐值一致；这支持将已观察到的差异归因于 GEMV/GEMM 形状带来的舍入，而不是把它直接解释成 state 传递错误。诊断不等于正式验收通过。
 
@@ -14,7 +14,7 @@ flowchart TD
     RNN --> MATCH[仅诊断：独立矩阵行数匹配 T]
     FULL --> EXACT[同形状 logits 逐值相同]
     MATCH --> EXACT
-    EXACT --> ADR[ADR-019 待确认；不覆盖原失败]
+    EXACT --> ADR[ADR-019 已授权；独立确认仍待通过]
 ```
 
 ## 原门和结果
@@ -45,11 +45,37 @@ flowchart TD
 
 诊断产物：`artifacts/generation_math_smoke_v1.json`、`generation_math_local_v0_v1.json`。新依赖环境和全新CUDA build cache也复现了0.4B诊断，产物 `generation_math_rebuilt_smoke_v1.json`。
 
-## 下一步决策
+## 后续精度原因对照
 
-[SPEC ADR-019](../SPEC.md) 提议分开验收：
+用户要求确认是否BF16误差，并授权在原因确认后继续推进，无需再次确认ADR。Step074～075增加了两类只读控制，正式训练/部署配置没有修改。
+
+首层固定真实receptance/key/value输入与权重，三投影×四长度，表内为各模型12组中的最大relative RMS（1行与多行计算）：
+
+| 投影计算方式 | 0.4B | 1.5B |
+|---|---:|---:|
+| 原BF16，低精度累加开启 | 0.004266 | 0.004321 |
+| BF16，低精度累加关闭 | 0 | 0.0001085 |
+| FP32 IEEE（无TF32） | 3.27e-7 | 8.70e-7 |
+| FP32结果转回BF16 | 0 | 0.00007657 |
+| FP64 | 0 | 0 |
+
+这里上转换的是**同一份已量化BF16张量**，不是重新加载不同精度权重；故隔离的是计算精度与矩阵形状，而非checkpoint文件差异。FP32的细小累加差异在接近BF16舍入中点时，仍可能转化为不同的BF16输出。
+
+再对完整24层递推做投影精度干预：仅将线性投影和矩阵乘法提升到FP64，输出仍转回BF16，WKV/state/reset及其余路径不变。两模型×16/64 token共4组中，整段与逐token的**logits及全部三类最终状态逐值相同**。FP32投影则仍有漂移。这提供了比“仅观察数值很小”更强的因果隔离证据，但只覆盖这些诊断输入。
+
+关闭BF16 reduced-precision reduction的整模型对照也全部保留：两模型仍不满足旧门，最坏mean KL为0.007904/0.018022。因此未将该开关当成已经验证的完整修复，也未将FP64诊断路径用于训练或部署。
+
+产物位于data root的 `artifacts/projection_precision_{smoke,local_v0}_v1.json`、`generation_precision_{smoke,local_v0}_v1.json`、`recurrent_precision_{smoke,local_v0}_v1.json`；各文件明确为diagnostic_only。[复用入口](../scripts/diagnose_projection_precision.py)与[可测试逻辑](../src/model/precision_diagnostics.py)均记录精度开关、输入/权重hash及恢复边界。
+
+## 已授权的后续验收
+
+[SPEC ADR-019](../SPEC.md) 已接受分开验收：
 
 - 同矩阵形状的严格递推等价：验证算法、状态传递和边界重置。
 - 实际部署形状的数值/行为稳定性：用独立提示、长窗、生成结果与真实工具预算重新事前登记，不能把本轮诊断样本作为确认结果。
 
-这不是批准放宽旧门。原 v1/v2/v3 失败和阈值不改写；M-02保持阻塞，M0、长训练、paired规模化和M2未启动。若选择保持原门不变，就继续数值路径研究，不能自动往下扩阶段。
+原 v1/v2/v3失败和阈值不改写。新 [confirmation配置](../configs/generation_confirmation.yaml) 采用3个未用于诊断的合成提示：128/256 token严格同形状/非对齐位置reset检查；原生128-token prefill加64-token逐步continuation，覆盖0.4B的1K/4K/8K及1.5B的1K/4K/16K。
+
+新原生漂移上限为relative RMS≤0.04、mean KL≤0.02、p95 KL≤0.10、top1≥0.90，并要求reference概率≥0.90的最高概率token无翻转、K0完全一致、贪心和固定seed采样重复一致。**这些数值比旧门宽，是诊断后的新工程预算，必须在独立确认前冻结；不是旧门通过，也不代表Agent成功率不下降。** 高置信位置的分母保留，不能用长prefix平均掩盖末尾64个受检位置。
+
+原生部署继续使用原BF16默认计算，既不填充矩阵行，也不启用FP64投影或reduction-off。M-02须等独立确认通过；M0仍需真正的Agent loop，G1仍需真实环境结果，不能由本工程确认取代。

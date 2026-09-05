@@ -166,5 +166,11 @@ def load_runtime(role: str, lm_tree: Path, cuda_tree: Path, build_root: Path):
         "device": torch.cuda.get_device_name(),
         "runtime_environment": environment,
         "short_inference_bf16_matmul_rows": "native; alignment is diagnostic-only",
+        "matmul_precision": {
+            "fp32_precision": torch.backends.cuda.matmul.fp32_precision,
+            "allow_bf16_reduced_precision_reduction": (
+                torch.backends.cuda.matmul.allow_bf16_reduced_precision_reduction
+            ),
+        },
     }
     return network, RWKVByteTokenizer(vocabulary), provenance

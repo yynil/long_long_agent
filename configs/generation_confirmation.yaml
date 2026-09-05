@@ -1,0 +1,31 @@
+schema_version: 1
+adr: ADR-019
+seed: 2026090519
+roles: [smoke, local_v0]
+precision_policy: original_bf16_native_reduction_on
+strict_lengths: [128, 256]
+native_lengths:
+  smoke: [1024, 4096, 8192]
+  local_v0: [1024, 4096, 16384]
+native_prefill_chunk: 128
+probe_tokens: 64
+generation_tokens: 32
+generation_max_seconds: 120
+native_thresholds:
+  relative_rms_max: 0.04
+  mean_kl_max: 0.02
+  p95_kl_max: 0.10
+  top1_agreement_min: 0.90
+  confident_probability_min: 0.90
+  confident_argmax_changes_max: 0
+failure_policy: preserve_all_cases_block_training_and_m0
+prompts:
+  - id: transaction_cache
+    task: "Repair an atomic cache update: empty string is a valid value; an interrupted write must preserve the previous entry. Verify both properties before reporting completion."
+    continuation: 'Assistant: I will inspect the cache write boundary and run the existing atomicity tests. <tool_call>{"name":"execute","arguments":{"command":"pytest -q tests/test_atomic_cache.py"}}</tool_call>'
+  - id: stream_decoder
+    task: "Repair a streaming decoder that receives a multibyte character across two chunks. Preserve incomplete bytes until the next chunk; reject malformed final input. Add regression tests without changing the public API."
+    continuation: 'Assistant: I will reproduce the split-byte case and the malformed final buffer case. <tool_call>{"name":"execute","arguments":{"command":"pytest -q tests/test_stream_decoder.py"}}</tool_call>'
+  - id: migration_rollback
+    task: "Repair a configuration migration so a failed validation rolls back all changes. Preserve unknown extension keys and prove a second successful migration is idempotent."
+    continuation: 'Assistant: I will inspect the transaction boundary and verify rollback and idempotence. <tool_call>{"name":"execute","arguments":{"command":"pytest -q tests/test_migration_rollback.py"}}</tool_call>'

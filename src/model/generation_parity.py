@@ -57,8 +57,17 @@ def metric_failures(metrics: dict, thresholds: dict) -> list[str]:
 
 @torch.inference_mode()
 def run_parity(
-    config_path: Path, role: str, lm_tree: Path, cuda_tree: Path, build_root: Path, output: Path
+    config_path: Path,
+    role: str,
+    lm_tree: Path,
+    cuda_tree: Path,
+    build_root: Path,
+    output: Path,
+    *,
+    diagnostic_only: bool = False,
 ):
+    if type(diagnostic_only) is not bool:
+        raise ValueError("diagnostic_only must be boolean")
     if output.exists():
         raise FileExistsError("refusing to overwrite parity evidence")
     config = yaml.safe_load(config_path.read_text())
@@ -131,7 +140,10 @@ def run_parity(
         generations.append({"prompt_id": index, "first": first, "repeated_identical": identical})
     report = {
         "schema_version": 1,
-        "status": "passed" if not failures else "failed",
+        "status": "diagnostic_only"
+        if diagnostic_only
+        else ("passed" if not failures else "failed"),
+        "thresholds_satisfied": not failures,
         "role": role,
         "provenance": provenance,
         "config_sha256": sha256_file(config_path),

@@ -1,6 +1,6 @@
 # RWKV-7 长 Agent 训练项目规格与执行台账
 
-> 状态：P0 准备阶段 / A0 v1 已验收、32/128 真实输入已准备、本机依赖重建及离线环境 fixture 通过 / M-02 阻塞，正式训练 No-Go<br>
+> 状态：P0 准备阶段 / A0 v1 已验收、BF16 数值原因已隔离、ADR-019 已接受 / M-02 独立确认待通过，正式训练 No-Go<br>
 > 规格版本：0.11.1<br>
 > 创建日期：2026-09-04  
 > 设计依据：[`rwkv7_agent_only_data_training_plan_zh.md`](./rwkv7_agent_only_data_training_plan_zh.md)
@@ -286,7 +286,7 @@ D-09 本轮完成范围是 Step 057 冻结的 Open-SWE 两教师 A0 候选准入
 | ID | 任务 | 依赖 | 产物/检查 | 状态 |
 |---|---|---|---|---|
 | M-01 | 镜像官方 RWKV-7 训练实现并记录差异 | P0-01 | upstream pin + patch series | 完成：upstream pin、兼容性报告与三份 patch 已验证 |
-| M-02 | 复现基座 tokenizer、前向与生成 | M-01,P0-03 | golden logits/generation；显存报告 | 阻塞：原生BF16不同矩阵形状的KL未通过；同形状两模型逐值等价，等待ADR-019验收协议决策 |
+| M-02 | 复现基座 tokenizer、前向与生成 | M-01,P0-03 | golden logits/generation；显存报告 | 进行中：BF16精度原因已确认、ADR-019按用户条件授权接受；原门失败保留，准备独立双层验收；正式训练仍阻塞 |
 | M-03 | 实现 state tree 的 serialize/clone/restore | M-02 | dtype/device/shape 校验；数值 round-trip | 完成：完整三类层状态、可微 continuation、真实 0.4B 与序列化验证通过 |
 | M-04 | 实现 slow/fast 双状态容器 | M-03 | fast mutation 不污染 slow 的单测 | 完成：决策级所有权、无别名 clone 与真实 0.4B 推进验证通过 |
 | M-05 | 实现 V0 latent control/depth embedding | M-04 | latent step 无 LM-head call；K=0 等价 | 完成：短窗可微 recurrence 与真实 0.4B K=0/K=4 验证通过 |
@@ -400,7 +400,7 @@ Sprint 0 结束定义：G0 全部满足，且能够用一个极小的 synthetic 
 | ADR-016 | 2026-09-05 | 对 ADR-001 的只读原则作窄范围例外：允许在原始训练计划顶部追加非规范架构图，但不得改写任何既有设计正文 | 用户明确要求每份文档都有图；图只提供导航且已声明实现状态以 SPEC 为准，因而不改变研究设计口径 | 已接受 |
 | ADR-017 | 2026-09-05 | 收紧 ADR-009：decision window 必须保留任务契约、当前必要 observation 和成对工具交互；最小充分上下文超限时拒绝并计数 | Step 053 复现现有裁剪可删除全部任务/observation、仍监督 assistant；这会损坏 action 的条件信息，须在 A0 前解决 | 已接受：用户要求按审查建议完成步骤 1～4 |
 | ADR-018 | 2026-09-05 | M0 分为开发集基座诊断与独立确认实验；必要时在 G1 前做受限的 Agent 格式 SFT，再用同一 SFT checkpoint 比较 no/short/long-think；G1 数值门槛必须早于确认实验冻结 | 避免把格式失败误判为 thinking 无效，以及用确认结果反推 G1 阈值 | 已接受：用户要求按审查建议完成步骤 1～4；G1 仍是 paired 规模化与 M2 的前置门 |
-| ADR-019 | 2026-09-05 | 提议将 M-02 验收分为“同矩阵形状的严格 recurrence 等价”和“原生部署形状的数值漂移/行为验收”，在独立提示集与长窗上重新事前冻结后者阈值；训练保留官方路径，部署默认不做矩阵行填充 | Step 061～063 原门失败，但固定 GEMM 形状后两模型逐值等价；BF16 GEMV/GEMM 本身依赖形状。直接放宽旧门或把诊断样本当新确认均不合规 | 提议，等待用户确认；原 v1/v2/v3 失败记录和阈值保留，M0/长训练继续暂停 |
+| ADR-019 | 2026-09-05 | 将 M-02 验收分为“同矩阵形状的严格 recurrence 等价”和“原生部署形状的数值漂移/行为验收”，在独立提示集与长窗上重新事前冻结后者阈值；训练保留官方路径，部署默认不做矩阵行填充 | Step061～063同形状逐值等价；Step074精度对照确认已观察到的BF16形状/reduction舍入差异。原失败与阈值保留，不把诊断充作独立确认 | 已接受：用户明确“如果是bf16的原因，可以继续推进不需要确认”；依Step074触发条件。新独立验收尚未通过，M0/长训练不自动放行 |
 
 ## 12. 执行日志
 
@@ -1115,3 +1115,50 @@ Sprint 0 结束定义：G0 全部满足，且能够用一个极小的 synthetic 
 - 结果：`git push origin main` 将远端 `d8926f6..f0f9dda` 更新成功；交付commit完整SHA为 `f0f9dda8355a6c90eaee61aeff53dbbef0a39590`，包含A0验收报告、manifest及状态更新，也同步了此前的大产物Git忽略规则。
 - 本地复核：`git status --porcelain=v1`为空，`git rev-parse HEAD origin/main`逐值相同；GitHub commits/main API用于独立复核提交与指定作者。此回执作为后续日志提交随同main同步，Git历史及远端ref为最终提交锚点。
 - 停止位置：数据独立工作已收尾；下一执行动作涉及ADR-019数值验收协议变更，需用户明确决定。原门失败没有被改写，真实训练/M0/M2没有启动；所有大产物与失败证据保留在指定data root。
+
+### 2026-09-05 / Step 072：解释 ADR-019 内容并复核当前证据
+
+- 关联工作：M-02/M-08、ADR-019；用户询问具体内容与现状，不视为接受提议或授权新实验。
+- 输入/动作：按AGENTS→SPEC→原研究设计核对边界；读取 `configs/generation_parity.yaml`、数值诊断报告及data root中的原始parity/diagnostic JSON；以 `jq` 聚合全部case，不重新运行GPU实验。
+- 原门复核：mean KL≤0.002、p95 KL≤0.01、top1≥0.95等阈值保持不变。0.4B/1.5B v1最坏mean KL为0.007043/0.017581；0.4B v2复用官方短CUDA后仍失败，最坏mean KL0.006482、p95 KL0.023326、最低top1=0.9375，共16条指标超限（不是16个独立任务）。
+- 诊断复核：两个模型在一个公开提示的16/32/64/128同矩阵形状检查中，共8组logits逐值一致；非零WKV初态及位置13 reset的整段/逐token输出和最终状态也一致。报告明确status=diagnostic_only，不能外推为长窗或真实Agent行为已通过。
+- 外部依据：核对PyTorch 2.11官方 Numerical accuracy文档 `https://docs.pytorch.org/docs/2.11/notes/numerical_accuracy.html`，其说明批量/切片计算不保证逐bit相同；该一般性质不替代本项目误差可接受性的实验验证。
+- 结论：ADR-019仍是拆分“实现严格等价”与“原生部署稳定性”的框架提议；独立提示集、长窗覆盖、行为指标和新数值阈值尚未完整冻结。接受提议也不等于M-02直接通过，必须先登记新协议、再独立验证，保留旧失败。
+- 产物与验证：仅追加本条说明日志，代码/配置/ADR状态不变；文档diff检查。无训练、数据变换、commit/push或阶段推进；M0和正式训练继续暂停。
+
+### 2026-09-05 / Step 073：条件授权与 BF16 精度原因对照计划
+
+- 关联工作：M-02/M-08、ADR-019；用户要求查明是否BF16误差，并明确“如果是bf16的原因，可以继续推进不需要确认”。该授权允许在原因确认后推进验收协议及后续依赖满足的工作，不授权把失败直接标记通过。
+- 中断记录：上一轮沙箱内nvidia-smi无法访问驱动；沙箱外只读GPU检查请求在审批处被用户中断，没有启动新GPU实验。用户关闭沙箱后复查，3090 Ti可用、显存0 MiB，未发现遗留训练作业。
+- 计划：固定已有checkpoint/代码/tokenizer，捕获首层真实receptance/key/value输入；使用同一份BF16输入/权重，比较1行与16/32/64/128行的BF16、FP32（关闭TF32）、FP64结果，以及BF16 reduced-precision reduction开关。高精度对照仅上转换现有张量，不声称恢复权重丢失精度。
+- 验收/停止：仅诊断形状差异与精度的因果关系，不改runtime默认、不改原parity阈值、不训练；保存全部对照及失败。若证据支持BF16数值原因，则按用户条件授权接受ADR-019，先冻结独立确认协议再验证；若出现无法解释的状态/实现差异，继续诊断而不越过M-02。
+
+### 2026-09-05 / Step 074：BF16 首层精度原因对照通过，继续整模型诊断
+
+- 关联工作：M-02/M-08、ADR-019；输入为固定0.4B/1.5B checkpoint首层真实receptance/key/value，共两模型×三投影×四长度×五精度模式=120组。
+- 实现/验证：`src/model/precision_diagnostics.py`及薄入口只捕获公开提示的首层张量；高精度使用同一BF16数值上转换；控制变量包括FP32 IEEE（无TF32）、BF16 reduced-precision reduction开关、FP64和FP32结果转回BF16。3项定向测试及全仓108项测试通过；控制开关及模型权重/输入保持可恢复/不突变。
+- 运行命令：重建环境 `scripts/diagnose_projection_precision.py --role smoke|local_v0 --lm /home/yueyulin/data/long_long_agent/tmp/rwkv-stateful-lm.xlewJ2 --cuda /home/yueyulin/data/long_long_agent/tmp/rwkv-stateful-cuda.sP8pb3 --build /home/yueyulin/data/long_long_agent/tmp/torch_extensions_rebuilt --output <data root>/artifacts/projection_precision_<role>_v1.json`；CUDA_HOME固定cuda-13.0、TORCH_EXTENSIONS_DIR固定重建cache。
+- 启动失败保留：首次只用绝对Python路径却未将env/bin加入PATH，Ninja未找到，未执行模型前向；修正启动PATH后两模型运行exit0。最初Ruff发现入口非executable和嵌套with格式问题，修正后通过。
+- 原因证据：首层官方/逐token输入逐值相同；默认BF16的1行/多行最坏relative RMS为0.004266/0.004321。关闭BF16低精度累加后分别为0/0.0001085；FP32 IEEE分别为3.27e-7/8.70e-7；FP64均为0。FP32转回BF16后0.4B为0，1.5B最多1/2048个元素不同，符合舍入边界敏感性。
+- 边界：关闭reduction不等于删除BF16最终舍入；高精度对照不恢复checkpoint量化损失。证据确认已观察到的首层差异来自数值计算路径，结合此前同形状整模型/WKV等价证据支持用户条件授权；尚不宣称长窗行为或M-02已通过。
+- 下一步：新增整模型reduction-off诊断模式，复用原12case/K0/重复生成与原阈值，报告固定status=diagnostic_only并记录实际数值开关。runtime仅增加provenance字段，默认计算路径不变。
+
+### 2026-09-05 / Step 075：整模型 FP64 投影干预确认数值原因并接受 ADR-019
+
+- 关联工作：M-02/M-08、ADR-019；用户条件授权在Step074原因证据成立后生效，ADR状态改为已接受，不再请求用户重复确认。
+- 整模型开关对照：诊断入口加 `--whole-model`，两模型各12case/原阈值/K0/重复生成；BF16 reduction-off仍不满足旧门，最坏mean KL0.007904/0.018022。报告为diagnostic_only/thresholds_satisfied=false，不启用此设置作为正式修复。
+- 更强因果隔离：入口加 `--recurrent-precision`，全模型所有Python投影/matmul只在进程内诊断context提升至FP32或FP64，输出仍转BF16，状态、kernel、激活dtype、token/权重均不改。两模型×16/64长度共4组FP64干预后，whole/single logits及WKV/TimeMix previous-x/ChannelMix previous-x全部逐值相同；FP32干预仍有差异，支持累加误差跨BF16舍入边界后在深层递推中传播的原因。
+- 产物：data root `recurrent_precision_smoke_v1.json` SHA `7cb2a44eb1bcb9a99405a2f88b983f2f147f86faf392e3938324d1591066e9e9`；`recurrent_precision_local_v0_v1.json` SHA `bd7379ba9a64aa6e2b78d7f198574efc5784db92e43c77821d2197f5f187b1ce`。四种首层/完整模型控制的原文件均保留，不在Git保存大张量。
+- 验证：精度context恢复、拒绝grad-enabled调用、输入/权重不突变、finite/shape失败关闭；全仓109 passed（1.98s）。没有改变模型默认数值策略，也没有训练。
+- 状态：M-02从等待用户决策的阻塞改为进行中，工程确认待执行；新协议未通过前不开展训练或M0。SPEC第一次状态补丁因hunk顺序错误被拒绝，按文档顺序重试成功，没有覆盖其他变更。
+
+### 2026-09-05 / Step 076：在独立实验前冻结 ADR-019 双层确认协议
+
+- 关联工作：M-02、P0-05、ADR-019；事前冻结 `configs/generation_confirmation.yaml` 及closed schema，配置SHA `c835c1823646ac20112441e856505d69a215a28216a7cad5092bfd3a223518ee`。
+- 时序：本协议在Step075诊断之后、任何新提示GPU运行之前制定；原v1/v2/v3/precision诊断的阈值和失败不变。先提交本协议与实现，再启动独立GPU确认，不用新结果反推阈值。
+- 严格层：3个新合成任务提示（事务缓存/流解码/迁移回滚），每模型128/256 token；reset固定在floor(T/3)，比较官方prefill、同矩阵形状逐tokenlogits及全部三类state，必须逐值一致。每模型6case，不把不同长度当独立任务。
+- 原生层：同3提示，seed2026090519；每模型9case；0.4B长度1024/4096/8192，1.5B长度1024/4096/16384。按实际部署128-token chunk预填充后，逐token消费最后64个固定continuation，只在这64个位置计算漂移，避免长prefix稀释。
+- 新工程漂移预算：每case relative RMS≤0.04、mean KL≤0.02、p95 KL≤0.10、top1≥0.90；reference top1概率≥0.90的位置不允许argmax翻转。预算比旧门宽（明确为诊断后新门），用于限制原生低精度的分布/高置信决策漂移，并非统计证明Agent任务非劣。全部位置/高置信分母及失败case保留。
+- 生成检查：每提示32个生成token，greedy和temperature0.7各重复两次、固定seed；tokens和stop必须相同，time-budget失败；每长窗K0相同。未把未SFT基座的工具语法能力设成数值门，真实Agent有效率仍属于T-04/M0/G1。
+- 数值策略：正式reference与原生路径均保持原BF16默认、reduction-on，不部署FP64/FP32投影或矩阵行填充；矩阵行对齐仅用于严格层。任何case失败均保存全部结果，继续阻塞训练/M0；异常保留已完成分母及异常类型。
+- 产物：`src/model/generation_confirmation.py`、薄入口、配置/schema与定向测试；新提示CPU token构造覆盖128至16384长度、确定性及高置信翻转拒绝测试通过。报告中明确是工程确认，不是可执行Agent成功率或G1。

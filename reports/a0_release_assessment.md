@@ -77,7 +77,7 @@ seed `20260905` 的 16K token-budget 计划有 9,089 rows、66,638 个尾部对�
 
 下一步依赖顺序：
 
-1. 用户决定是否接受 SPEC 中的 ADR-019。若接受，先冻结同形状 recurrence 检查与原生部署漂移/行为检查的独立确认方案，再运行；原失败记录与阈值继续保留。
+1. ADR-019 已按用户“若确认为 BF16 原因则继续”的条件授权接受（SPEC Step 074～076）；下一步执行已经事前冻结的同形状 recurrence 与原生部署漂移/行为代理独立确认。原失败记录与阈值继续保留，工程确认不取代真实 Agent 评测。
 2. M-02 通过后完成真实 32/128 overfit、GPU 中断恢复、run registry 和 Agent loop；先实测 8K/16K 峰值与有效 token 吞吐。三卡 SM89/DDP/NCCL 的环境验收仍独立待办。
 3. 完成 20～30 个 dev 任务的 M0 pilot，必要时做受限格式 SFT；在独立确认实验前冻结 G1 数值门槛，并用相同 checkpoint、snapshot、sampling 和工具预算比较四基线。
 4. 只有 G1 通过，才扩大 paired snapshot 数据与 fixed-K V0 训练。若失败，保存诊断并停在该门，不自动推进 M2。
