@@ -1069,3 +1069,11 @@ Sprint 0 结束定义：G0 全部满足，且能够用一个极小的 synthetic 
 - 文档：新增README入口，明确研究目标、No-Go、带hash环境锁、数据准入和实验边界；`reports/generation_parity_diagnosis.md`保留原门失败与矩阵形状诊断；`reports/executable_environment_fixture.md`区分oracle fixture与Agent结果。
 - 文档QA：复用固定Mermaid/jsdom解析器检查README、两份报告和SPEC，4/4 Mermaid可解析、18个本地链接存在。原研究设计未改动。
 - 审计v3：冻结实现commit59b39c0后完整重跑，目前累计准入数量与v2一致；尚不宣布D-10完成。已在用户对话提出ADR-019的非阻塞确认请求，未假定获批。
+
+### 2026-09-05 / Step 067：复核个人仓库与大产物边界
+
+- 关联工作：P0-00、P0-03；用户授权个人Git提交。
+- 只读复核：所有commit作者均为指定yynil；GitHub API返回repository private=true、default_branch=main、size=10,327 KiB。当前已推送至d8926f6，未创建PR或改变可见性。
+- Git产物清单不含模型/raw/blob/Parquet/训练checkpoint；最大的五个文件是用户先前要求的手绘架构图（单个≤2.50 MB）。原始数据、OCI镜像、依赖环境及失败构建目录均在data root。
+- 防误提交：`.gitignore`增加根models/raw/blobs、data/raw/releases及pth/pt/safetensors。`git check-ignore`验证这些路径会被忽略，而`data/heldout/manifest.yaml`不会被忽略。README明确uv cache和Python安装目录也应位于指定data root。
+- 状态：Git防护验证通过；没有删除材料。A0重审继续，所有失败证据可恢复。

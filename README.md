@@ -29,6 +29,8 @@ flowchart LR
 Python 3.11.15，PyTorch 2.11.0+cu130；CUDA toolkit、上游 revision 与模型 SHA 见 [基座配置](configs/base_model.yaml) 和 [环境报告](reports/environment.md)。依赖使用 [带 distribution hash 的锁文件](configs/requirements-runtime-cu130.lock)。
 
 ```bash
+export UV_CACHE_DIR=/home/yueyulin/data/long_long_agent/uv_cache
+export UV_PYTHON_INSTALL_DIR=/home/yueyulin/data/long_long_agent/python
 uv venv --python 3.11.15 /home/yueyulin/data/long_long_agent/envs/train-rebuild-cu130
 uv pip sync \
   --python /home/yueyulin/data/long_long_agent/envs/train-rebuild-cu130/bin/python \
