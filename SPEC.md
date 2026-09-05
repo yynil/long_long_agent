@@ -1330,3 +1330,16 @@ Sprint 0 结束定义：G0 全部满足，且能够用一个极小的 synthetic 
 - 关联工作：T-07/T-08，ADR-021；复用已有三进程确认器，仅增加明确schema v2派发与逐张量max_scaled_abs指标；旧v1配置/schema/失败全部保留。新配置 `configs/a0_resume_confirmation_v2.yaml` SHA `3207610b5f610476441d23c4c863644d82f0e5225b1cf84e1e3b2d48afeef900`，新schema固定各数值并拒绝未知字段，具体协议见独立恢复报告第7节。
 - 实验前验证：131 tests通过（4.64s），Ruff通过；新增按2的幂缩放下归一化误差不变、未知版本/预算以及调大预算拒绝测试，并补v2 manifest往返。只读确认新任务7863/6419 input、102/722 loss tokens，GPU0MiB；未观察新任务GPU结果来调整预算。
 - 执行：提交实现后同一干净commit、原重建环境/固定LM/CUDA/build，入口 `scripts/validate_a0_resume_confirmation.py --config configs/a0_resume_confirmation_v2.yaml --run-root <data root>/artifacts/training_preflight/adr021_scaled_v1 --phase reference|fixed|native`；每phase独立进程，任一非passed即停止后续phase。通过后按Step096推进实际容量/overfit。
+
+### 2026-09-05 / Step 098：独立原生恢复v2通过，推进真实训练工程
+
+- 关联工作：T-07/T-05/T-08、M-08；固定commit `c83be25` 已推送，按Step097三进程运行，reference/fixed/native均passed。未在GPU结果后修改配置或阈值。无更新对照的3次反向通过，独立加载与fixed optimizer exact；native的模型、计数、sampler/RNG、全部非计时指标及更新后loss exact。
+- native量化：梯度max-abs9.53674e-7、max-scaled-abs0.0124518、relative-L20.00038912；master max-abs5.96046e-8、relative-L26.59604e-9；exp_avg max-scaled-abs0.00886093、relative-L20.000276904；exp_avg_sq为0.0194862/0.000608943，全部低于冻结预算，完整分母与差异参数留在原始报告。仅本机0.4B有界恢复验收通过，不推广至DDP或长作业误差保证，旧失败原样保留。
+- 下一训练协议事前登记：固定A0 128输入计划、官方0.4B/BF16/FP32-master，原learning rate3e-6及资源停止线不变。先对输入索引78（8124 input、2271 loss tokens）连续2次全参数更新测稳态峰值，再用新进程相同初始权重/样本/步数仅尾补8192做padded计时。之后从基座分别训练前32与前128个独立train任务，每组8 epochs，训练seed20260908，全部样本每epoch恰覆盖一次；初始及每epoch全样本weighted CE评估，保存所有分母、逐row loss及失败，不选最佳epoch代替末轮。
+- overfit验收：最终全样本weighted CE≤initial×0.5；任一epoch评估loss不得超过前一轮×1.25（分母floor1e-8）；参数/master/moments保持有限，逐步资源线沿用预检；训练sequence presentations必须分别256/1024，checkpoint在第4/8轮和异常停止点保留。8轮完成前不把部分下降称为overfit完成，失败先停并诊断；这只是工程记忆测试，失败轨迹不自动成为正式SFT正例。128依赖32通过；原生恢复、capacity、padded任一失败不启动overfit。
+
+### 2026-09-05 / Step 099：真实容量/overfit入口与事前测试
+
+- 关联工作：T-03/T-05/T-07/T-08、M-08；新增 `src/training/real_overfit.py`、薄入口、闭合config/manifest schema与独立报告 `reports/real_a0_overfit.md`，统一入口只增加导航。配置SHA `c76bb36c265d14392c99361ce29aba365f4ce61b362560e5ab0f6ec35ac2b1be`，严格绑定Step098原生passed报告与相同runtime/environment。
+- 验证：136 tests通过（4.70s），Ruff check通过；新增闭合配置拒绝、weighted loss分母/分位数、完整epoch/样本覆盖/末轮与spike判定、CPU真实trainer评估不改计数、manifest离线schema往返测试。检查发现空loss列表需在strict zip前保持长度一致，已在GPU前修复并测试，不改变阈值。
+- 执行：提交后同一干净commit依次运行 `scripts/run_a0_real_overfit.py --run-root <data root>/artifacts/real_sft/a0_overfit_v1 --phase capacity|padded|overfit32|overfit128`，路径/环境沿用Step097；独立进程链按退出码停止。完成后独立报告全量曲线与失败，不混入数据质量报告。

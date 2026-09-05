@@ -1,0 +1,16 @@
+schema_version: 1
+purpose: real_a0_overfit
+base_config: configs/a0_training_preflight.yaml
+base_config_sha256: 0fb22d6ed382d0c1c1666f74734836690c3ab747af9c50b72d6bbf49695ad436
+resume_result: artifacts/training_preflight/adr021_scaled_v1/native/result.json
+resume_result_sha256: c97b4a6d71f44f4659c8f78b90153cc9c0baefff28d4b8ed22f338e9a8d653cb
+training_seed: 20260908
+cpu_threads: 4
+capacity_sample_index: 78
+capacity_updates: 2
+epochs: 8
+checkpoint_epochs: [4, 8]
+acceptance:
+  maximum_final_to_initial_loss_ratio: 0.5
+  maximum_epoch_to_previous_loss_ratio: 1.25
+  loss_ratio_denominator_floor: 1.0e-8

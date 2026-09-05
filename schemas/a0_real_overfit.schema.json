@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object", "additionalProperties": false,
+  "required": ["schema_version", "purpose", "base_config", "base_config_sha256", "resume_result", "resume_result_sha256", "training_seed", "cpu_threads", "capacity_sample_index", "capacity_updates", "epochs", "checkpoint_epochs", "acceptance"],
+  "properties": {
+    "schema_version": {"const": 1}, "purpose": {"const": "real_a0_overfit"},
+    "base_config": {"const": "configs/a0_training_preflight.yaml"}, "base_config_sha256": {"$ref": "#/$defs/hash"},
+    "resume_result": {"const": "artifacts/training_preflight/adr021_scaled_v1/native/result.json"}, "resume_result_sha256": {"$ref": "#/$defs/hash"},
+    "training_seed": {"const": 20260908}, "cpu_threads": {"const": 4},
+    "capacity_sample_index": {"const": 78}, "capacity_updates": {"const": 2}, "epochs": {"const": 8}, "checkpoint_epochs": {"const": [4, 8]},
+    "acceptance": {"type": "object", "additionalProperties": false, "required": ["maximum_final_to_initial_loss_ratio", "maximum_epoch_to_previous_loss_ratio", "loss_ratio_denominator_floor"],
+      "properties": {"maximum_final_to_initial_loss_ratio": {"const": 0.5}, "maximum_epoch_to_previous_loss_ratio": {"const": 1.25}, "loss_ratio_denominator_floor": {"const": 1e-8}}}
+  },
+  "$defs": {"hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}
+}
