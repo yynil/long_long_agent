@@ -80,3 +80,60 @@ def test_preflight_json_is_immutable_and_manifest_rejects_missing_fields(tmp_pat
     assert json.loads(path.read_text())["status"] == "failed"
     with pytest.raises(jsonschema.ValidationError):
         validate_manifest({"schema_version": 1})
+
+
+def test_manifest_validates_before_and_after_json_and_rejects_tuple_packages():
+    from src.training.checkpoint import PROVENANCE_KEYS
+
+    digest = "a" * 64
+    flags = {"fp32_precision": "ieee", "allow_bf16_reduced_precision_reduction": True}
+    manifest = {
+        "schema_version": 1,
+        "purpose": "real_a0_full_parameter_preflight",
+        "phase": "continuous",
+        "code_commit": "b" * 40,
+        "dirty_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "input_plan_sha256": digest,
+        "command": ["preflight"],
+        "resolved_config": load_config(ROOT / "configs/a0_training_preflight.yaml"),
+        "provenance": dict.fromkeys(PROVENANCE_KEYS, digest),
+        "environment": {
+            "lock_sha256": digest,
+            "packages": [["torch", "2.11.0"]],
+            "python": "3.11.15",
+            "torch": "2.11.0",
+            "cuda": "13.0",
+            "device": "test-device",
+            "capability": [8, 6],
+            "numerical_flags": flags,
+        },
+        "runtime": {
+            "checkpoint_sha256": digest,
+            "tokenizer_sha256": digest,
+            "model_code_sha256": digest,
+            "torch": "2.11.0",
+            "cuda": "13.0",
+            "device": "test-device",
+            "matmul_precision": flags,
+            "short_inference_bf16_matmul_rows": "native; alignment is diagnostic-only",
+            "upstream_trees": [{"revision": "b" * 40, "patched_files": {"model.py": digest}}] * 2,
+            "runtime_environment": {
+                "RWKV_JIT_ON": "0",
+                "RWKV_HEAD_SIZE": "64",
+                "RWKV_MY_TESTING": "x070",
+                "RWKV_KERNEL": "",
+                "RWKV_HEAD_L2WRAP_CE_CHUNK": "0",
+                "TORCH_CUDA_ARCH_LIST": "8.6",
+            },
+        },
+    }
+    validate_manifest(manifest)
+    validate_manifest(json.loads(json.dumps(manifest)))
+    bad = copy.deepcopy(manifest)
+    bad["environment"]["packages"] = [("torch", "2.11.0")]
+    with pytest.raises(jsonschema.ValidationError):
+        validate_manifest(bad)
+    bad = copy.deepcopy(manifest)
+    bad["resolved_config"]["unexpected"] = True
+    with pytest.raises(jsonschema.ValidationError):
+        validate_manifest(bad)

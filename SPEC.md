@@ -1235,3 +1235,9 @@ Sprint 0 结束定义：G0 全部满足，且能够用一个极小的 synthetic 
 - 阈值冻结时序：此条与配置先于任何新GPU前反向。固定官方BF16、全参数/FP32-master、lr3e-6、clip1、无激活重算、8K预算；loss≤100、preclip norm≤1e6、peak≤23000MiB、单步返回后耗时≤120s；恢复前后及下一更新状态/非计时指标必须exact。恢复通过才跑同初值/样本的两步padded计时；n=2不做性能收益结论。完整协议与限制见独立报告，不修改ADR-019或G1。
 - 停止与产物：任何OOM/非有限值/恢复差异保存失败且停止该实验，所有checkpoint/raw留data root；报告含hash与代码异常位置，不复述输入。提交固定实现并通过测试后才启动 `continuous`，随后按依赖运行 `resume`、`padded`。
 - 实验前验证：117 tests passed（4.47s）；Ruff check/format通过（116文件），23份Markdown/23图/100本地链接通过，diff检查通过。配置SHA `0fb22d6ed382d0c1c1666f74734836690c3ab747af9c50b72d6bbf49695ad436`；首次Ruff要求显式说明顶层异常捕获，已加保留失败且禁止复述输入的理由，未更改数值策略。
+
+### 2026-09-05 / Step 085：首轮 manifest 序列化拒绝与最小修订
+
+- 关联工作：P0-05、T-07；固定协议commit `b2272f2` 已推送；重建环境运行 `scripts/validate_a0_training_preflight.py --phase continuous --run-root <data root>/artifacts/training_preflight/real8k_v1`，LM/CUDA worktree和cache沿用Step078路径，PATH包含env/bin与cuda-13.0/bin。
+- 结果：真实128输入重建通过、基座加载成功后，manifest schema拒绝 `packages` 中的Python tuple；尚未创建optimizer或执行前反向/参数更新，steps为空。失败报告与intent保留，阶段runtime/ValidationError，进程退出后GPU0MiB。
+- 原因/修订：Python内存tuple不是JSON Schema array，虽JSON输出时会转array，输出前校验仍须显式list。仅把包版本二元组改为list，并增加完整manifest的内存/JSON round-trip、tuple拒绝和未知嵌套配置拒绝测试；模型、输入、配置SHA和全部阈值不变。提交后使用新 `real8k_v2` 目录重新执行，不覆盖v1或据此改变数值门。

@@ -303,7 +303,7 @@ def run_preflight(config_path: Path, run_root: Path, phase: str, lm: Path, cuda:
             config["model_role"], lm.resolve(), cuda.resolve(), build.resolve()
         )
         packages = sorted(
-            (d.metadata["Name"], d.version) for d in importlib.metadata.distributions()
+            [d.metadata["Name"], d.version] for d in importlib.metadata.distributions()
         )
         environment = {
             "lock_sha256": sha256_file(ROOT / config["environment_lock"]),
