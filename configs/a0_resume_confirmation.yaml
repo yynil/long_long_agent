@@ -1,0 +1,19 @@
+schema_version: 1
+purpose: adr020_resume_confirmation
+base_config: configs/a0_training_preflight.yaml
+base_config_sha256: 0fb22d6ed382d0c1c1666f74734836690c3ab747af9c50b72d6bbf49695ad436
+sample_indices: [32, 33]
+training_seed: 20260906
+backward_repeats: 3
+cpu_threads: 4
+acceptance:
+  master: {max_abs: 2.0e-7, relative_l2: 1.0e-6}
+  exp_avg: {max_abs: 1.0e-6, relative_l2: 1.0e-3}
+  exp_avg_sq: {max_abs: 1.0e-9, relative_l2: 1.0e-3}
+  gradient: {max_abs: 1.0e-5, relative_l2: 1.0e-3}
+  envelope_multiplier: 3.0
+  envelope_floor: {max_abs: 1.0e-6, relative_l2: 1.0e-4}
+  relative_l2_denominator_floor: 1.0e-30
+  exact_sections: [model, trainer, sampler, rng]
+  exact_metrics: true
+  gradient_parameter_pattern: '^blocks\.[0-9]+\.(att\.(x_[rwkvag]|k_[ka]|ln_x\.(weight|bias))|ffn\.x_k)$'

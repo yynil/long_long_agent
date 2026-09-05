@@ -75,6 +75,6 @@ CPU比较连续与恢复的 `step2.pt`（`torch.load(weights_only=True)`）：
 
 ## 5. 下一步，不静默改门
 
-已在SPEC登记ADR-020提议：保持保存/加载本身逐值一致；补充固定同一梯度的GPU optimizer续步对照，隔离checkpoint机制；原生下一步则需与不经过恢复的重复运行波动比较，并在独立确认前冻结新数值预算。当前只是提议，旧strict失败保留，padded对照和完整32/128 overfit仍未启动。
+Step088时在SPEC登记ADR-020提议：保持保存/加载本身逐值一致；补充固定同一梯度的GPU optimizer续步对照，隔离checkpoint机制；原生下一步则需与不经过恢复的重复运行波动比较，并在独立确认前冻结新数值预算。Step089用户继续后接受该框架，后续协议与结果另见[三层独立确认报告](gpu_resume_confirmation.md)，不改写本报告旧strict失败。padded对照和完整32/128 overfit仍未启动。
 
 不为追求hash相同改动官方CUDA，也不直接切换dtype、缩短保护上下文或扩大训练。真实32/128还须覆盖较长监督目标和多个任务，再估算完整训练预算。

@@ -1,0 +1,61 @@
+# GPU 恢复三层独立确认（ADR-020）
+
+日期：2026-09-05。状态：协议已冻结，尚未运行本轮GPU确认。
+
+[统一入口](../rwkv7_agent_only_data_training_plan_zh.md) · [原预检与失败证据](real_a0_training_preflight.md) · [执行台账](../SPEC.md)
+
+```mermaid
+flowchart TD
+    NEW[新 train 任务32 / 33，新训练seed] --> REF[reference进程：第1条真实更新]
+    REF --> SAVE[完整checkpoint / 指纹 / RNG probe]
+    SAVE --> CTRL[第2条无更新反向重复3次；状态不变]
+    CTRL --> UPDATE[第2条真实更新；冻结实际clipped梯度G]
+    SAVE --> FIX[fixed进程：加载必须exact；只重放G做optimizer.step]
+    UPDATE --> FIX
+    FIX --> EXACT{模型和FP32优化器全部exact}
+    EXACT -->|通过| NAT[native进程：重新加载，真实反向及第2步更新]
+    NAT --> BUDGET{冻结预算 / 无恢复包络 / 精确状态门}
+    EXACT -->|失败| STOP[保留失败；不扩大训练]
+    BUDGET -->|失败| STOP
+    BUDGET -->|通过| NEXT[仅本机有界恢复确认；继续容量与overfit预检]
+```
+
+## 1. 为什么拆开验收
+
+旧 `real8k_v2/v3` 在保存/加载后所有训练状态逐位一致，但真实下一步更新后的FP32优化器不完全相同。Step088直接对照已证明：相同输入重复反向、不再次加载checkpoint也存在微小梯度变化；固定官方CUDA中相应参数使用FP32原子归约并转换为BF16。旧strict失败保留，不能用新协议改写历史。
+
+本报告只验证本机SM86、固定0.4B、官方BF16、FP32-master AdamW的一次恢复后更新。不改变官方kernel或精度开关；不证明长轨迹误差累积有界、SM89/DDP恢复、32/128 overfit或真实Agent收益。
+
+## 2. 事前固定的协议
+
+[新配置](../configs/a0_resume_confirmation.yaml) 通过[闭合schema](../schemas/a0_resume_confirmation.schema.json)校验，引用旧配置及SHA，不修改原exact门。manifest通过[独立schema](../schemas/resume_confirmation_manifest.schema.json)校验；共用旧runtime/environment的闭合字段定义，schema仅从仓库解析，不访问网络。
+
+- 从固定A0 128输入计划完整重建并逐项核对，再取零基索引32/33。两个任务未用于旧GPU诊断，train-only、成功/失败各一；输入7484/6643 tokens，监督字段合计272/393 tokens（实际causal loss分母由trainer报告），不裁减保护上下文。
+- 输入重建seed仍为20260905；训练/RNG seed为20260906，CPU比较线程数4。学习率3e-6、clip1、betas0.9/0.99、epsilon1e-18、weight decay0、head chunk32、unrecomputed官方CUDA均沿用旧配置。
+- 先运行reference：第1条正常更新并保存checkpoint；第2条重复3次forward/backward/clip，不更新、不恢复，要求模型/优化器/计数/RNG不变；然后正常执行第2步，冻结该步实际clipped梯度和最终checkpoint。
+- fixed为独立进程：加载必须exact，校验下一batch、RNG probe、梯度文件SHA、内部hash、provenance、全参数coverage/dtype/shape/finite；只重放同一份梯度做optimizer.step。模型、FP32 master/moments和RNG必须与reference逐位一致；trainer和sampler必须保持第1步，因为本层没有真正消耗新batch，不能伪造trainer计数。
+- native再次独立启动：只有reference和fixed通过才允许执行；恢复点仍须exact，正常train_step消耗第2条。BF16模型、trainer/sampler/RNG、所有非计时step指标及更新后同输入loss必须exact；仅允许FP32优化器受已确认的原生微小梯度波动影响。
+- 非有限、OOM、任一验证失败均保留报告。资源停止线沿用loss100、preclip norm1e6、23000MiB、单次更新/对照120秒；时间与峰值在操作返回后检查，并非可抢占硬超时。有限的实际更新在等价性判定前保存。
+
+## 3. 独立确认前的数值预算
+
+以下数值基于旧诊断的量级制定，**在本次新任务GPU结果出现前冻结**，不是事后拟合。每个张量同时满足两列；relative-L2=`||actual-reference||₂ / max(||reference||₂, 1e-30)`，不能以全模型分母掩盖小参数误差。
+
+| 对象 | 最大绝对差值 | 每张量relative-L2 |
+|---|---:|---:|
+| FP32 master | 2e-7 | 1e-6 |
+| exp_avg | 1e-6 | 1e-3 |
+| exp_avg_sq | 1e-9 | 1e-3 |
+| clipped gradient | 1e-5 | 1e-3 |
+
+optimizer step、参数映射和超参数严格一致；所有参数及moment完整覆盖、FP32、有限。原生梯度还须落在同任务无恢复对照包络内：每项不超过`max(3 × 对照最大值, floor)`，absolute/relative floor分别1e-6/1e-4，且同时满足表中的硬上限。允许出现差异的参数族只限已定位的`att.x_*`、`att.k_k/k_a`、`att.ln_x.weight/bias`、`ffn.x_k`；出现其他族不自动归因BF16。
+
+此处三次对照用于固定公式的同任务噪声参照，不用于调节配置或阈值。报告保留全部不同参数、不同元素数、张量与元素总分母及最大误差，不只汇报均值。
+
+## 4. 复现与结果
+
+入口 [validate_a0_resume_confirmation.py](../scripts/validate_a0_resume_confirmation.py)，核心 [resume_confirmation.py](../src/training/resume_confirmation.py) 与[比较器](../src/training/resume_comparison.py)。新run root位于配置data root下 `artifacts/training_preflight/adr020_independent_v1`，三个phase为`reference`→`fixed`→`native`，各自独立Python进程。同一干净Git commit执行；拒绝覆盖任何已有phase。
+
+沿用本机重建环境`envs/train-rebuild-cu130`、CUDA13.0与旧预检固定LM/CUDA worktree、build cache。每phase保存intent、manifest、result；reference另存step1、实际梯度及final，fixed/native各保留final。大文件不进Git，不打印轨迹内容。
+
+结果待执行后追加，不用新结果覆盖旧失败。通过后优先补最坏监督长度容量与可比padded计时，再按事前步数/下降目标执行真实32→128 overfit；G1和规模化训练仍未通过。

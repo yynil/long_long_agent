@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object", "additionalProperties": false,
+  "required": ["schema_version", "purpose", "base_config", "base_config_sha256", "sample_indices", "training_seed", "backward_repeats", "cpu_threads", "acceptance"],
+  "properties": {
+    "schema_version": {"const": 1}, "purpose": {"const": "adr020_resume_confirmation"},
+    "base_config": {"const": "configs/a0_training_preflight.yaml"},
+    "base_config_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "sample_indices": {"const": [32, 33]},
+    "training_seed": {"const": 20260906}, "backward_repeats": {"const": 3}, "cpu_threads": {"const": 4},
+    "acceptance": {
+      "type": "object", "additionalProperties": false,
+      "required": ["master", "exp_avg", "exp_avg_sq", "gradient", "envelope_multiplier", "envelope_floor", "relative_l2_denominator_floor", "exact_sections", "exact_metrics", "gradient_parameter_pattern"],
+      "properties": {
+        "master": {"$ref": "#/$defs/budget"}, "exp_avg": {"$ref": "#/$defs/budget"},
+        "exp_avg_sq": {"$ref": "#/$defs/budget"}, "gradient": {"$ref": "#/$defs/budget"},
+        "envelope_floor": {"$ref": "#/$defs/budget"},
+        "envelope_multiplier": {"type": "number", "exclusiveMinimum": 0},
+        "relative_l2_denominator_floor": {"type": "number", "exclusiveMinimum": 0},
+        "exact_sections": {"const": ["model", "trainer", "sampler", "rng"]},
+        "exact_metrics": {"const": true},
+        "gradient_parameter_pattern": {"type": "string", "minLength": 1}
+      }
+    }
+  },
+  "$defs": {"budget": {
+    "type": "object", "additionalProperties": false, "required": ["max_abs", "relative_l2"],
+    "properties": {"max_abs": {"type": "number", "exclusiveMinimum": 0}, "relative_l2": {"type": "number", "exclusiveMinimum": 0}}
+  }}
+}

@@ -250,7 +250,7 @@ artifacts/models/<run_id>/
 | P0-03 | 建立 Python/CUDA 依赖锁 | lockfile + 容器定义 | 新环境可完成最小前向 | 进行中：66包distribution hash锁、新环境重建/105项测试/全新CUDA cache前向通过；远程环境待建 |
 | P0-04 | 冻结 held-out 边界 | `data/heldout/*.txt` | 分组规则与污染测试就绪 | 完成：五来源 42,982 group 的 repo/task 90/5/5 hash split、列表校验与 canonical v1.1 接入通过 |
 | P0-05 | 固化数据、训练、评测配置 schema | `schemas/` | CI 可校验所有配置 | 进行中：source registry 与四表 schema 已建立 |
-| P0-06 | 建立跨文档架构图审计基线 | 全部 Markdown 文档；`docs/diagrams/*.png` | 每份文档有精确 Mermaid 图；模型有从系统到源码符号的手绘图并完成链接/图像校验 | 完成：23份文档/23个Mermaid/105个本地链接通过（Step088）；5张手绘图沿用既有视觉、尺寸与hash验收 |
+| P0-06 | 建立跨文档架构图审计基线 | 全部 Markdown 文档；`docs/diagrams/*.png` | 每份文档有精确 Mermaid 图；模型有从系统到源码符号的手绘图并完成链接/图像校验 | 完成：24份文档/24个Mermaid/116个本地链接通过（Step090）；5张手绘图沿用既有视觉、尺寸与hash验收 |
 
 #### 已确认的资源分工
 
@@ -404,7 +404,7 @@ Sprint 0 结束定义：G0 全部满足，且能够用一个极小的 synthetic 
 | ADR-017 | 2026-09-05 | 收紧 ADR-009：decision window 必须保留任务契约、当前必要 observation 和成对工具交互；最小充分上下文超限时拒绝并计数 | Step 053 复现现有裁剪可删除全部任务/observation、仍监督 assistant；这会损坏 action 的条件信息，须在 A0 前解决 | 已接受：用户要求按审查建议完成步骤 1～4 |
 | ADR-018 | 2026-09-05 | M0 分为开发集基座诊断与独立确认实验；必要时在 G1 前做受限的 Agent 格式 SFT，再用同一 SFT checkpoint 比较 no/short/long-think；G1 数值门槛必须早于确认实验冻结 | 避免把格式失败误判为 thinking 无效，以及用确认结果反推 G1 阈值 | 已接受：用户要求按审查建议完成步骤 1～4；G1 仍是 paired 规模化与 M2 的前置门 |
 | ADR-019 | 2026-09-05 | 将 M-02 验收分为“同矩阵形状的严格 recurrence 等价”和“原生部署形状的数值漂移/行为验收”，在独立提示集与长窗上重新事前冻结后者阈值；训练保留官方路径，部署默认不做矩阵行填充 | Step061～063同形状逐值等价；Step074～075精度干预确认BF16形状/reduction舍入原因；原失败保留 | 已接受：用户“如果是bf16的原因，可以继续推进不需要确认”；Step078本机独立工程确认通过。非真实Agent/G1通过，不自动扩大训练 |
-| ADR-020 | 2026-09-05 | T-07区分逐值保存/加载、固定梯度optimizer续步和原生反向噪声下的续步验收；新数值预算须在独立确认前冻结，保留原exact失败 | Step087～088：恢复点全部exact；无再次恢复的3次反向仍有微小梯度波动，相关官方归约使用FP32 atomicAdd再转BF16 | 提议：先补固定梯度对照与独立确认协议，不直接放行较长overfit或改变官方CUDA |
+| ADR-020 | 2026-09-05 | T-07区分逐值保存/加载、固定梯度optimizer续步和原生反向噪声下的续步验收；新数值预算须在独立确认前冻结，保留原exact失败 | Step087～088：恢复点全部exact；无再次恢复的3次反向仍有微小梯度波动，相关官方归约使用FP32 atomicAdd再转BF16 | 已接受协议框架（Step089）：用户继续授权及既有BF16条件授权；须通过三层独立确认，不自动放行overfit或改变官方CUDA |
 
 ## 12. 执行日志
 
@@ -1265,3 +1265,19 @@ Sprint 0 结束定义：G0 全部满足，且能够用一个极小的 synthetic 
 - 产物：独立 `reports/real_a0_training_preflight.md` 与小型 `reports/a0_training_preflight_summary.json`，记录原失败/完整分母/报告SHA；数据报告与A0报告只链接更新训练状态，不堆入数据正文。原v1/v2/v3、失败checkpoint及诊断均保留在data root；没有删除材料或改动官方kernel。
 - 决策/下一步：登记ADR-020提议，先补固定梯度恢复对照及事前冻结的独立原生确认，不直接放宽旧阈值。T-07/T-05保持进行中，T-08只推进预检子范围；padded计时、完整32/128 overfit、M0/G1、远程作业均未启动。GPU进程已退出，显存0MiB；真实短目标8K两步峰值不能外推为所有监督长度都可训练。
 - 最终验证：全仓120 tests通过，Ruff check/format通过（119文件），23份Markdown/23图/105本地链接通过，三个汇总所引用原始报告的SHA全部复核通过；diff检查通过。只提交代码、配置、schema、测试、小报告与导航，checkpoint/梯度/raw不进Git；交付至既有个人private main，不修改可见性或使用force。
+
+### 2026-09-05 / Step 089：继续T-07，事前登记三层独立恢复确认
+
+- 关联工作：T-07/T-05/T-08、M-08，ADR-020；按AGENTS→SPEC→统一入口→研究正文读取并核对现有trainer/checkpoint/诊断源码。起点为干净的 `ffb4a1c507e9142a79044fcf8130a928e973156a`，本机3090 Ti显存0MiB。用户在上一轮明确下一步后要求继续；结合既有“若BF16原因可推进”授权，接受ADR-020框架，不把旧exact失败改写为通过。
+- 独立性：沿用固定A0 128输入计划，只使用此前GPU诊断未用过的零基索引32、33（两任务7484/6643 input tokens，成功/失败各一；更长监督目标），训练/RNG seed改为20260906，输入重建seed仍为已冻结20260905。基座/官方CUDA/FP32-master/学习率和资源停止线沿用原配置；新协议独立配置、schema和新产物目录，执行前提交。
+- 三层：reference进程更新第1条后保存完整状态；在第2条重复3次无更新反向并检查状态/RNG未变，然后真实更新第2条并保存实际clipped梯度。fixed进程重新加载第1步、验证全部指纹及RNG，用同一份已验证梯度仅运行optimizer.step，要求模型/master/moments逐位相同（trainer/sampler不假装消耗新batch）。native进程再次独立加载第1步，真实运行第2条并校验完整计数、batch/RNG、loss和模型。
+- 新原生数值预算在本次GPU数据出现前登记：BF16模型、保存/加载、loss、preclip norm、计数/RNG/sampler必须exact；FP32 master逐张量max-abs≤2e-7且relative-L2≤1e-6；exp_avg≤1e-6且≤1e-3；exp_avg_sq≤1e-9且≤1e-3；optimizer step及超参数exact。梯度max-abs≤1e-5且relative-L2≤1e-3，并不超过同任务无恢复对照包络 `max(3×观察上界, floor)`，floor分别1e-6/1e-4；差异须仅限已定位的官方原子归约参数族。relative-L2分母为max(reference L2, 1e-30)。这些是基于Step087～088诊断设定、在独立确认前冻结的工程门，不是长作业误差证明或G1门。
+- 停止条件：任一层失败、非有限、OOM或既有资源界限越界，保留所有失败与有限checkpoint，不执行后续层或较长overfit。本轮先交付此有界GPU确认；padded、最坏监督长度容量、完整32→128 overfit仍须后续独立验收。详细协议/结果另建专题报告，由统一入口链接。
+
+### 2026-09-05 / Step 090：三层确认实现与实验前验证
+
+- 关联工作：T-07/T-08、P0-05/P0-06；实现 `src/training/resume_confirmation.py`、`resume_comparison.py` 与薄入口 `scripts/validate_a0_resume_confirmation.py`，新增独立协议/manifest闭合schema、7项单测和独立报告 `reports/gpu_resume_confirmation.md`，统一入口只增加链接。核心trainer/checkpoint/官方kernel未修改。
+- 配置SHA：新 `configs/a0_resume_confirmation.yaml` 为 `5e04fb87d2782494a4669073cfee4000c8e494cbcee062c1a26733997ad6bd5d`；旧配置仍为 `0fb22d6ed382d0c1c1666f74734836690c3ab747af9c50b72d6bbf49695ad436`。全部128输入重建校验后取索引32/33，sampler必须保持两行既定顺序；CPU聚合线程数4登记在新配置。
+- 验证：全仓127 tests通过（4.63s），Ruff check/format通过（124文件），diff检查通过；测试覆盖固定梯度重放无别名/全量优化器一致、未知字段/非有限/改变base或输入拒绝、逐张量分母、包络/参数族拒绝、artifact hash/provenance，以及manifest离线引用闭合schema。首次Ruff发现新薄入口未设执行权限，已修正；实现审查补齐GPU moment移至CPU比较，未运行GPU或依据新结果改阈值。
+- 文档验证：24份Markdown、24个Mermaid、116个本地链接全部通过；P0-06同步更新覆盖数。
+- 执行计划：提交此协议与实现后，固定重建环境、LM/CUDA/build路径同Step085，依次独立进程运行 `--run-root <data root>/artifacts/training_preflight/adr020_independent_v1 --phase reference|fixed|native`；前层非passed不执行下一层。保存全部实际结果后再更新状态。

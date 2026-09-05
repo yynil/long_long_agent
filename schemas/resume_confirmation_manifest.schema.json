@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://long-long-agent.local/resume_confirmation_manifest.schema.json",
+  "type": "object", "additionalProperties": false,
+  "required": ["schema_version", "purpose", "phase", "code_commit", "dirty_diff_sha256", "provenance", "runtime", "environment", "input_plan_sha256", "command", "resolved_config", "base_config", "selected_samples"],
+  "properties": {
+    "schema_version": {"const": 1}, "purpose": {"const": "adr020_resume_confirmation"},
+    "phase": {"enum": ["reference", "fixed", "native"]},
+    "code_commit": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+    "dirty_diff_sha256": {"const": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
+    "provenance": {"$ref": "training_preflight_manifest.schema.json#/properties/provenance"},
+    "runtime": {"$ref": "training_preflight_manifest.schema.json#/properties/runtime"},
+    "environment": {"$ref": "training_preflight_manifest.schema.json#/properties/environment"},
+    "input_plan_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "command": {"type": "array", "items": {"type": "string"}},
+    "resolved_config": {"$ref": "a0_resume_confirmation.schema.json"},
+    "base_config": {"$ref": "a0_training_preflight.schema.json"},
+    "selected_samples": {
+      "type": "array", "minItems": 2, "maxItems": 2,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["input_plan_index", "sample_id", "input_tokens"],
+        "properties": {
+          "input_plan_index": {"type": "integer", "minimum": 32, "maximum": 33},
+          "sample_id": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+          "input_tokens": {"type": "integer", "minimum": 1, "maximum": 8192}
+        }
+      }
+    }
+  }
+}

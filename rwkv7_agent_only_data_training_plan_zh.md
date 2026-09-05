@@ -33,6 +33,7 @@ flowchart TD
 | 数值与训练工程 | [BF16 原因与独立确认](reports/generation_parity_diagnosis.md)、[packed varlen 验证](reports/packed_varlen_assessment.md)、[优化器策略](reports/optimizer_policy_assessment.md)、[合成 overfit](reports/tiny_overfit_assessment.md) | 工程正确性、失败及限制；不代表真实 Agent 能力 |
 | 可执行环境 | [环境 fixture 验证](reports/executable_environment_fixture.md) | sandbox、snapshot 与 buggy/gold verifier；不是模型任务成功率 |
 | 真实训练预检 | [A0 两步训练与 GPU 恢复](reports/real_a0_training_preflight.md) | 真实8K输入、全参数更新、独立进程恢复与padded计时；不冒充32/128 overfit |
+| 恢复独立确认 | [ADR-020 GPU恢复三层确认](reports/gpu_resume_confirmation.md) | 保存/加载exact、固定梯度重放、原生反向噪声预算；保留原strict失败 |
 | 资源与版本 | [硬件环境](reports/environment.md)、[上游版本盘点](reports/upstream_inventory.md)、[本机环境重建](README.md) | 固定模型/代码/依赖、资源与运行入口 |
 | 项目审查 | [2026-09-05 进展审查](reports/project_progress_review_2026-09-05.md) | 当时的目标、亮点、风险与路线建议；后续状态以 SPEC 为准 |
 
