@@ -1287,3 +1287,18 @@ Sprint 0 结束定义：G0 全部满足，且能够用一个极小的 synthetic 
 - 关联工作：T-07；协议/实现commit `a55ef8a` 已推送个人private main。按Step090命令启动 `adr020_independent_v1/reference`，重建输入通过，随后顺序断言ValueError；未加载模型、未执行forward/backward/optimizer，steps为空，GPU退出后0MiB。intent/result完整保留。
 - 原因与最小修复：`TokenBudgetPackSampler.__iter__` 的已测公共接口返回tuple，新检查错误地用list元素比较；实际行顺序未改变。抽出 `confirmation_sampler`，检查改为 `[(0,), (1,)]`，新增真实长度7484/6643的tuple接口及反序拒绝测试。不改数据选择、seed、梯度/恢复预算或原配置SHA。
 - 下一步：通过全仓验证、提交修复后，新目录 `adr020_independent_v2` 从reference重新执行；v1不覆盖、不更名为成功。
+
+### 2026-09-05 / Step 092：独立任务无恢复对照超出冻结预算，按门停止
+
+- 关联工作：T-07/T-08、M-08；128 tests通过（4.52s），修复commit `87a26b9` 已推送。新v2第一条7484-token/272-loss-token真实更新通过，loss1.415448、preclip norm133、1.507s、peak17,724,090,368 bytes；完整step1保存。
+- 原生对照：第2条6643-token输入，已完成的两次无更新反向loss均0.3693450689、norm47.75；第2次相对首次47张量/54元素不同，max-abs3.0517578125e-5、最大relative-L2约1.45823e-4。max-abs超过事前1e-5，且4个att.r_k不在冻结allowlist，故reference failed，第三次对照、第二次真实更新、fixed/native后续phase均未执行。未发生OOM/非有限；对照peak19,768,647,168 bytes。
+- 只读原因复核：最大差异在blocks.0.att.ln_x.bias，r_k差异在blocks.4/10/19/21；固定官方 `rwkv7_tmix_lnx_rkvres_xg_bf16_v1.cu` 第249～254行同时对ln_x weight/bias和r_k执行FP32 atomicAdd，第325～368行建立FP32归约缓冲并转BF16。说明原先固定absolute budget及参数族名单未覆盖新任务；不是可以直接宣称恢复通过的证据。原配置、阈值、failed状态保持不变，GPU0MiB。
+- 工程审查另发现部分官方参数grad=None，实际795个有效梯度张量/450,767,872元素，而798是模型参数总张量数；比较器需按显式None名单验证AdamW的惰性moment覆盖，不能误要求未参与前向的参数都有moments。修复必须新增拒绝遗漏有效moment的测试，不减少模型全参数更新范围。
+- 下一诊断（不绕过失败门）：把固定梯度机制测试独立于原生噪声门，使用v2已验证step1作为唯一来源；capture进程加载后做一次有界真实反向/更新并冻结G，replay独立进程加载同一点只用G做optimizer.step，要求model/master/moments/RNG逐位一致；两分支加载点均须与原step1指纹一致。仅产出fixed-gradient diagnostic，不启动已失败协议的native层、overfit或新数值门。失败source/参数配置与新诊断代码、命令、文件SHA全部绑定，结果另行记录。
+
+### 2026-09-05 / Step 093：独立固定梯度诊断实现与来源冻结
+
+- 关联工作：T-07；新增固定source的diagnostic配置/闭合schema/manifest schema、薄入口及 `src/training/fixed_gradient_diagnostic.py`，两phase为capture/replay。配置SHA `ad18735ada533b88c07ae50aecaa8586fd3352b4ec7e5e8e1153a5f0ecfbcbbe`，source manifest/result分别 `7e4a68ea1bced1bd43994d3731931af901dd571aeaf4fecf6b6cab9e36fd84bf` / `6f9472286a49674fface9c043a650e34267ad3f7caf164c1146df619f0f8c533`；不改原生确认配置SHA。
+- 质量修订：optimizer比较器只按明确None名单允许惰性moment；master仍比较全参数，moment分母单独保留，有效moment缺失仍拒绝。新增回归测试及diagnostic config/manifest未知字段、source协议hash拒绝测试。未改官方trainer/kernel，未重跑失败协议。
+- 执行前提交实现；入口为 `scripts/diagnose_a0_fixed_gradient_resume.py --run-root <data root>/artifacts/training_preflight/fixed_gradient_diagnostic_v1 --phase capture|replay`，固定重建环境/LM/CUDA/build同Step085。capture不完整则拒绝replay；每进程只一次有界optimizer更新，任何非exact不扩大训练。
+- 实验前验证：全仓130 tests通过（4.57s）、Ruff check/format通过（126文件）、diff检查通过。新schema与梯度无别名/完整hash/惰性moments校验均有测试；旧协议及source SHA未变。

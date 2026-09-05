@@ -95,7 +95,9 @@ def install_gradients(network, gradients: dict) -> None:
         p.grad = None if gradient is None else gradient.to(device=p.device).clone()
 
 
-def optimizer_comparison(expected: dict, actual: dict, acceptance: dict) -> dict:
+def optimizer_comparison(
+    expected: dict, actual: dict, acceptance: dict, *, inactive_parameters: tuple[str, ...] = ()
+) -> dict:
     fields = {"schema_version", "parameter_names", "master_weights", "optimizer"}
     if set(expected) != fields or set(actual) != fields:
         raise ValueError("unknown optimizer state fields")
@@ -112,27 +114,43 @@ def optimizer_comparison(expected: dict, actual: dict, acceptance: dict) -> dict
     ):
         raise ValueError("optimizer hyperparameters changed")
     ids = [key for group in left["param_groups"] for key in group["params"]]
-    if set(left["state"]) != set(ids) or set(right["state"]) != set(ids):
+    if len(set(ids)) != len(ids) or len(ids) != len(names):
+        raise ValueError("optimizer parameter mapping changed")
+    if not set(inactive_parameters).issubset(names):
+        raise ValueError("unknown inactive parameters")
+    if set(left["state"]) != set(right["state"]) or not set(left["state"]).issubset(ids):
         raise ValueError("optimizer moments missing or unexpected")
-    for key in ids:
+    if any(
+        name not in inactive_parameters and key not in left["state"]
+        for name, key in zip(names, ids, strict=True)
+    ):
+        raise ValueError("active optimizer moments missing")
+    active = [(name, key) for name, key in zip(names, ids, strict=True) if key in left["state"]]
+    for _, key in active:
         if set(left["state"][key]) != {"step", "exp_avg", "exp_avg_sq"} or set(
             right["state"][key]
         ) != {"step", "exp_avg", "exp_avg_sq"}:
             raise ValueError("unknown optimizer moment fields")
         if tree_digest(left["state"][key]["step"]) != tree_digest(right["state"][key]["step"]):
             raise ValueError("optimizer step differs")
-    report = {"failed_checks": []}
+    report = {
+        "failed_checks": [],
+        "parameters_without_moments": [
+            name for name, key in zip(names, ids, strict=True) if key not in left["state"]
+        ],
+    }
     for section in ("master", "exp_avg", "exp_avg_sq"):
         pairs = []
         for source in (expected, actual):
             tensors = (
                 source["master_weights"]
                 if section == "master"
-                else [source["optimizer"]["state"][key][section] for key in ids]
+                else [source["optimizer"]["state"][key][section] for _, key in active]
             )
             if any(t.dtype != torch.float32 for t in tensors):
                 raise ValueError("optimizer state must remain FP32")
-            pairs.append(dict(zip(names, tensors, strict=True)))
+            section_names = names if section == "master" else [name for name, _ in active]
+            pairs.append(dict(zip(section_names, tensors, strict=True)))
         report[section] = tensor_comparison(
             *pairs, denominator_floor=acceptance["relative_l2_denominator_floor"]
         )

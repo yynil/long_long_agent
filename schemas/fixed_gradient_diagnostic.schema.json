@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object", "additionalProperties": false,
+  "required": ["schema_version", "purpose", "source_directory", "source_manifest_sha256", "source_result_sha256", "source_protocol", "source_protocol_sha256"],
+  "properties": {
+    "schema_version": {"const": 1}, "purpose": {"const": "fixed_gradient_resume_diagnostic"},
+    "source_directory": {"const": "artifacts/training_preflight/adr020_independent_v2/reference"},
+    "source_manifest_sha256": {"$ref": "#/$defs/hash"}, "source_result_sha256": {"$ref": "#/$defs/hash"},
+    "source_protocol": {"const": "configs/a0_resume_confirmation.yaml"},
+    "source_protocol_sha256": {"$ref": "#/$defs/hash"}
+  },
+  "$defs": {"hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}
+}

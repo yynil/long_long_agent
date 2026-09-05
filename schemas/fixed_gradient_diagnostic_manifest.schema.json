@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object", "additionalProperties": false,
+  "required": ["schema_version", "purpose", "phase", "code_commit", "config_sha256", "source_manifest_sha256", "source_result_sha256", "runtime_sha256", "environment_sha256", "command"],
+  "properties": {
+    "schema_version": {"const": 1}, "purpose": {"const": "fixed_gradient_resume_diagnostic"},
+    "phase": {"enum": ["capture", "replay"]}, "code_commit": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+    "config_sha256": {"$ref": "#/$defs/hash"}, "source_manifest_sha256": {"$ref": "#/$defs/hash"},
+    "source_result_sha256": {"$ref": "#/$defs/hash"}, "runtime_sha256": {"$ref": "#/$defs/hash"},
+    "environment_sha256": {"$ref": "#/$defs/hash"}, "command": {"type": "array", "items": {"type": "string"}}
+  },
+  "$defs": {"hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}
+}

@@ -195,6 +195,67 @@ def test_gradient_artifact_checks_file_payload_and_batch_identity(tmp_path):
         checked_gradients(path, sha256_file(path), payload["provenance"], payload["batch_sha256"])
 
 
+def test_lazy_moments_only_allowed_for_explicit_none_gradients():
+    model = torch.nn.Linear(4, 3, dtype=torch.bfloat16)
+    opt = optimizer(model)
+    model.weight.grad = torch.ones_like(model.weight)
+    opt.step()
+    state = copy.deepcopy(opt.state_dict())
+    with pytest.raises(ValueError, match="active.*missing"):
+        optimizer_comparison(state, state, protocol()["acceptance"])
+    report = optimizer_comparison(
+        state, state, protocol()["acceptance"], inactive_parameters=("bias",)
+    )
+    assert report["parameters_without_moments"] == ["bias"]
+    assert report["master"]["tensors"] == 2
+    assert report["exp_avg"]["tensors"] == 1
+    assert not report["failed_checks"]
+    changed = copy.deepcopy(state)
+    changed["optimizer"]["state"].clear()
+    with pytest.raises(ValueError):
+        optimizer_comparison(
+            state, changed, protocol()["acceptance"], inactive_parameters=("bias",)
+        )
+
+
+def test_fixed_diagnostic_config_pins_failed_source_and_rejects_unknown_fields(tmp_path):
+    from src.training.fixed_gradient_diagnostic import load_diagnostic_config
+
+    config = load_diagnostic_config(ROOT / "configs/fixed_gradient_resume_diagnostic.yaml")
+    for changes in (
+        {"unexpected": 0},
+        {"source_protocol_sha256": "a" * 64},
+        {"source_directory": "artifacts/other"},
+    ):
+        path = tmp_path / "config.yaml"
+        path.write_text(yaml.safe_dump({**config, **changes}))
+        with pytest.raises((ValueError, jsonschema.ValidationError)):
+            load_diagnostic_config(path)
+    manifest_schema = json.loads(
+        (ROOT / "schemas/fixed_gradient_diagnostic_manifest.schema.json").read_text()
+    )
+    manifest = {
+        "schema_version": 1,
+        "purpose": config["purpose"],
+        "phase": "capture",
+        "code_commit": "b" * 40,
+        "command": ["diagnostic"],
+        **{
+            k: "a" * 64
+            for k in (
+                "config_sha256",
+                "source_manifest_sha256",
+                "source_result_sha256",
+                "runtime_sha256",
+                "environment_sha256",
+            )
+        },
+    }
+    jsonschema.validate(manifest, manifest_schema)
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate({**manifest, "unexpected": 1}, manifest_schema)
+
+
 def test_confirmation_manifest_offline_refs_and_closed_schemas():
     # The historical checked-in aggregate provides no runtime payload: use a small
     # synthetic envelope with all official runtime fields, never local artifacts.

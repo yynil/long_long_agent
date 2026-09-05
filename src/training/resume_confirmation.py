@@ -382,6 +382,9 @@ def run_confirmation(
             )
             gradients = capture_gradients(network)
             report["gradient_sha256"] = tree_digest(gradients)
+            report["inactive_gradient_parameters"] = [
+                name for name, gradient in gradients.items() if gradient is None
+            ]
             if phase == "reference":
                 with (output / "gradients.pt").open("xb") as stream:
                     torch.save(
@@ -451,7 +454,10 @@ def run_confirmation(
                 raise ValueError("reference final checkpoint hash changed")
             payload = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
             report["optimizer_comparison"] = optimizer_comparison(
-                payload["optimizer"], trainer.optimizer.state_dict(), protocol["acceptance"]
+                payload["optimizer"],
+                trainer.optimizer.state_dict(),
+                protocol["acceptance"],
+                inactive_parameters=tuple(report["inactive_gradient_parameters"]),
             )
             report["failures"].extend(report["optimizer_comparison"]["failed_checks"])
             del payload

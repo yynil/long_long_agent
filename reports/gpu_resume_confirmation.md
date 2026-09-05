@@ -1,6 +1,6 @@
 # GPU 恢复三层独立确认（ADR-020）
 
-日期：2026-09-05。状态：协议已冻结，尚未运行本轮GPU确认。
+日期：2026-09-05。状态：新任务的无恢复对照超过冻结预算，独立原生确认停止；固定梯度机制另立有界诊断，不改写失败。
 
 [统一入口](../rwkv7_agent_only_data_training_plan_zh.md) · [原预检与失败证据](real_a0_training_preflight.md) · [执行台账](../SPEC.md)
 
@@ -58,4 +58,18 @@ optimizer step、参数映射和超参数严格一致；所有参数及moment完
 
 沿用本机重建环境`envs/train-rebuild-cu130`、CUDA13.0与旧预检固定LM/CUDA worktree、build cache。每phase保存intent、manifest、result；reference另存step1、实际梯度及final，fixed/native各保留final。大文件不进Git，不打印轨迹内容。
 
-结果待执行后追加，不用新结果覆盖旧失败。通过后优先补最坏监督长度容量与可比padded计时，再按事前步数/下降目标执行真实32→128 overfit；G1和规模化训练仍未通过。
+`adr020_independent_v1`（commit `a55ef8a`）：输入重建后，新增行顺序断言错误地比较tuple/list，GPU加载前失败，0更新。修复为sampler实际tuple接口并补反序拒绝测试，配置不动，新建v2。
+
+`adr020_independent_v2`（commit `87a26b9`）：第一条真实更新通过，7484 input /272 loss tokens，loss1.41544795、norm133、1.507s、peak17,724,090,368 bytes。第二条无更新反向完成2次，loss均0.3693450689、norm均47.75，对照peak19,768,647,168 bytes；第2次相对第1次有47张量/54元素不同。最大绝对差`3.0517578125e-5`超过冻结`1e-5`，最大relative-L2`1.45823e-4`未超`1e-3`；另4个`att.r_k`不在冻结allowlist。按门失败，未执行第3次对照、reference第2次更新、fixed/native后续phase。
+
+最大差在`blocks.0.att.ln_x.bias`；新参数为`blocks.4/10/19/21.att.r_k`。固定官方源码 `rwkv7_tmix_lnx_rkvres_xg_bf16_v1.cu:249–254` 对ln_x与r_k均使用FP32 atomicAdd，随后转BF16。新证据仍指向原生并行归约/舍入，但也说明从旧样本量级选出的固定absolute上限及参数名单不能直接迁移；**不因此改动本次阈值、allowlist或failed结论**。
+
+梯度分母为795张量/450,767,872元素，798是模型参数总张量数；None梯度单独保留。AdamW仅为参与过更新的参数惰性创建moment，比较器允许显式None名单中的合法空状态，但仍拒绝任何有效参数moment缺失、字段未知或映射不一致。
+
+## 5. 失败后的固定梯度机制诊断
+
+独立[诊断配置](../configs/fixed_gradient_resume_diagnostic.yaml)固定v2 manifest/result SHA和已保存step1。新目录`fixed_gradient_diagnostic_v1`，入口 [diagnose_a0_fixed_gradient_resume.py](../scripts/diagnose_a0_fixed_gradient_resume.py)，实现 [fixed_gradient_diagnostic.py](../src/training/fixed_gradient_diagnostic.py)。这不是继续运行已失败协议的native层，也不拟合新的数值阈值。
+
+capture/replay两个独立进程均加载同一step1；加载点的模型/master/moments/计数/RNG及sampler、随机probe和下一batch必须与source逐位一致。capture只做1次真实更新并冻结实际clipped梯度G；replay不反向，只重放G做optimizer.step。要求最终BF16模型、完整FP32优化器和RNG与capture逐位一致；replay的trainer/sampler保持原第1步，明确它没有执行新的train_step。完整成功/失败checkpoint与梯度保留，不进Git。
+
+本项完成也只隔离checkpoint/optimizer机制；本次独立原生确认仍failed。下一步需先制定新的原生确认协议（考虑BF16表示尺度和完整源码参数族，保留现有失败，使用新的未测train任务），之后才允许容量/padded/32→128 overfit。G1与规模化训练仍未通过。
