@@ -1,0 +1,42 @@
+schema_version: 1
+purpose: real_rwkv_packed_sft_trainer_diagnostic
+base_model:
+  upstream_revision: 9a75f9f037afa4418ee6283b584b92b1adb89ca1
+  checkpoint_file: rwkv7-g1d-0.4b-20260210-ctx8192.pth
+  checkpoint_sha256: 947cb9b8013224e06b112b72204256bec65096cc935a7767ce63d8e3ddef83bb
+  tokenizer_sha256: e6dee3d4e31b4d5c40ac99508ac6c701ceef4bed681bf2167ce9a908552bca89
+  layers: 24
+  embedding_dim: 1024
+  context_length: 8192
+  head_size: 64
+  decay_lora_rank: 64
+  aaa_lora_rank: 64
+  mv_lora_rank: 32
+  gate_lora_rank: 128
+fixture:
+  kind: synthetic_agent_decisions
+  sample_counts: [32, 128]
+  source_revision: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+packing:
+  max_tokens: 512
+  alignment: 16
+  sampler_seed: 20260904
+  bucket_size: 128
+optimization:
+  mode: head_only_diagnostic
+  optimizer_state: parameter_dtype
+  seed: 20260904
+  epochs: 4
+  learning_rate: 0.001
+  weight_decay: 0.0
+  beta1: 0.9
+  beta2: 0.99
+  epsilon: 1.0e-8
+  fused_adamw: true
+  head_chunk_tokens: 32
+  gradient_clip_norm: 5.0
+acceptance:
+  maximum_final_to_initial_loss_ratio: 0.8
+  maximum_epoch_to_previous_loss_ratio: 1.25
+  require_all_samples_each_epoch: true
+artifact_root: /home/yueyulin/data/long_long_agent/artifacts/tiny_overfit

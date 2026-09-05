@@ -1,0 +1,66 @@
+schema_version: 1
+
+input:
+  source: top_layer_hidden
+  flatten_wkv_state: false
+
+architecture:
+  type: independent_linear_heads
+  binary_output_count: 8
+  remaining_turns_output: log1p
+  weight_initializer: orthogonal
+  initializer_gain: 0.01
+  bias_initializer: zeros
+
+binary_tasks:
+  - parse_valid
+  - exec_valid
+  - new_information
+  - immediate_progress
+  - regression
+  - next_milestone_within_4_turns
+  - next_milestone_within_16_turns
+  - terminal_success
+
+regression_tasks:
+  - remaining_turns
+
+loss:
+  binary: binary_cross_entropy_with_logits
+  remaining_turns: smooth_l1_on_log1p_target
+  missing_label: explicit_boolean_mask
+  aggregation: equal_weight_mean_over_active_tasks
+  zero_active_labels: reject
+  task_weights:
+    parse_valid: 1.0
+    exec_valid: 1.0
+    new_information: 1.0
+    immediate_progress: 1.0
+    regression: 1.0
+    next_milestone_within_4_turns: 1.0
+    next_milestone_within_16_turns: 1.0
+    terminal_success: 1.0
+    remaining_turns: 1.0
+
+label_status:
+  canonical_v1_available:
+    - parse_valid
+    - exec_valid
+    - new_information
+    - immediate_progress
+    - regression
+    - h4_progress
+    - h16_progress
+    - terminal_success
+  canonical_field_mapping:
+    parse_valid: parse_valid
+    exec_valid: exec_valid
+    new_information: new_information
+    immediate_progress: immediate_progress
+    regression: regression
+    next_milestone_within_4_turns: h4_progress
+    next_milestone_within_16_turns: h16_progress
+    terminal_success: terminal_success
+    remaining_turns: null
+  requires_schema_migration:
+    - remaining_turns

@@ -1,0 +1,60 @@
+schema_version: 1
+status: frozen
+created_at: '2026-09-04T15:50:05.370831+00:00'
+group_identity_version: repo_else_task_v1
+split_algorithm: sha256_salted_bucket_v1
+salt: long-long-agent-heldout-v1-20260904
+bucket_count: 10000
+ranges:
+  train:
+  - 1000
+  - 9999
+  dev:
+  - 500
+  - 999
+  test:
+  - 0
+  - 499
+sources:
+- source_id: openthoughts_agent_sft_100k
+  revision: 45fb28fcc38d352133cb28a1c8a43a2f14fea97b
+  episode_count: 94334
+  group_count: 37186
+- source_id: open_swe_traces_openhands_pair
+  revision: 1e02268b36de153ab4b18707571c1cedba62cd10
+  episode_count: 84066
+  group_count: 2626
+- source_id: microsoft_orchard_swe
+  revision: 70c05ec1f20f823ae6adc60374922e9271bb74e2
+  episode_count: 107185
+  group_count: 2788
+- source_id: nebius_swe_agent_trajectories
+  revision: 68195a1450865274106246d0d0296a1d6807b88e
+  episode_count: 80036
+  group_count: 1276
+- source_id: nebius_swe_rebench_openhands
+  revision: 35455389ab51bf5e2306bfd436ef72d0f98bf882
+  episode_count: 67074
+  group_count: 1823
+lists:
+  dev:
+    path: dev_group_hashes.txt
+    sha256: a53ca87e1269b1fe62f1f7f53f715695c0120134e96f7adb57295bd53d0af336
+    count: 2268
+  test:
+    path: test_group_hashes.txt
+    sha256: ea2415d0751c1e8d28340365d1a9a289b1b086959ff2fcde5332d957b9906e2a
+    count: 2194
+statistics:
+  episode_count: 432695
+  global_group_count: 42982
+  cross_source_group_count: 1738
+  invalid_identity_count: 0
+  episode_split_counts:
+    train: 382251
+    dev: 21191
+    test: 29253
+  group_split_counts:
+    train: 38520
+    dev: 2268
+    test: 2194

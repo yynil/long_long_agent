@@ -1,0 +1,23 @@
+schema_version: 1
+
+storage:
+  local_root: /home/yueyulin/data/long_long_agent
+  remote_root: /home/yueyulin/data/long_long_agent
+  raw_dir: raw
+  cache_dir: hf_cache
+  models_dir: models
+  releases_dir: releases
+  blobs_dir: blobs
+  artifacts_dir: artifacts
+  tmp_dir: tmp
+
+remote:
+  host: 192.168.1.39
+  user: yueyulin
+  project_dir: /home/yueyulin/github/long_long_agent
+
+policy:
+  immutable_raw: true
+  require_pinned_revision: true
+  verify_expected_size: true
+  keep_large_files_out_of_git: true

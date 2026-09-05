@@ -1,0 +1,69 @@
+schema_version: 1
+storage_config: configs/storage.yaml
+
+sources:
+  - source_id: openthoughts_agent_sft_100k
+    repo_id: open-thoughts/OpenThoughts-Agent-SFT-100K
+    repo_type: dataset
+    revision: 45fb28fcc38d352133cb28a1c8a43a2f14fea97b
+    declared_license: apache-2.0
+    expected_lfs_bytes: 1749498856
+    allow_patterns:
+      - README.md
+      - data/*.parquet
+    adapter: openthoughts_agent
+    stage: A0
+
+  - source_id: open_swe_traces_openhands_pair
+    repo_id: nvidia/Open-SWE-Traces
+    repo_type: dataset
+    revision: 1e02268b36de153ab4b18707571c1cedba62cd10
+    declared_license: cc-by-4.0
+    expected_lfs_bytes: 7518472984
+    allow_patterns:
+      - README.md
+      - data/openhands/minimax_m25/*.parquet
+      - data/openhands/qwen35_122b/*.parquet
+    adapter: open_swe_traces
+    stage: A0
+    selection_note: Same harness; Minimax-M2.5 thinking and Qwen3.5-122B non-thinking.
+
+  - source_id: microsoft_orchard_swe
+    repo_id: microsoft/Orchard
+    repo_type: dataset
+    revision: 70c05ec1f20f823ae6adc60374922e9271bb74e2
+    declared_license: mit
+    expected_lfs_bytes: 9715673417
+    allow_patterns:
+      - README.md
+      - swe/train/*.parquet
+    adapter: orchard_swe
+    stage: A0
+    selection_note: GUI subset excluded from the agent-only SWE cold start.
+
+  - source_id: nebius_swe_agent_trajectories
+    repo_id: nebius/SWE-agent-trajectories
+    repo_type: dataset
+    revision: 68195a1450865274106246d0d0296a1d6807b88e
+    declared_license: cc-by-4.0
+    expected_lfs_bytes: 1114367701
+    allow_patterns:
+      - README.md
+      - data/*.parquet
+    adapter: nebius_swe_agent
+    stage: A0
+
+  - source_id: nebius_swe_rebench_openhands
+    repo_id: nebius/SWE-rebench-openhands-trajectories
+    repo_type: dataset
+    revision: 35455389ab51bf5e2306bfd436ef72d0f98bf882
+    declared_license: cc-by-4.0
+    expected_lfs_bytes: 2079503354
+    allow_patterns:
+      - LICENSE
+      - README.md
+      - config.toml
+      - tools.json
+      - trajectories.parquet
+    adapter: nebius_openhands
+    stage: A0

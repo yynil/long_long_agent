@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://long-long-agent.local/schemas/tiny_overfit.schema.json",
+  "title": "Tiny packed Agent SFT overfit configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "purpose",
+    "fixture",
+    "packing",
+    "model",
+    "optimization",
+    "acceptance",
+    "artifact_root"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "purpose": {"const": "packed_agent_sft_pipeline_smoke"},
+    "fixture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "sample_counts", "source_revision", "tokenizer"],
+      "properties": {
+        "kind": {"const": "synthetic_agent_decisions"},
+        "sample_counts": {
+          "type": "array",
+          "const": [32, 128]
+        },
+        "source_revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "tokenizer": {"const": "byte_level_fixture"}
+      }
+    },
+    "packing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_tokens", "alignment", "sampler_seed", "bucket_size"],
+      "properties": {
+        "max_tokens": {"type": "integer", "minimum": 16},
+        "alignment": {"const": 16},
+        "sampler_seed": {"type": "integer", "minimum": 0},
+        "bucket_size": {"type": "integer", "minimum": 1}
+      }
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["backend", "vocabulary_size", "embedding_width"],
+      "properties": {
+        "backend": {"const": "tiny_feature_model"},
+        "vocabulary_size": {"const": 257},
+        "embedding_width": {"type": "integer", "minimum": 4}
+      }
+    },
+    "optimization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "seed",
+        "epochs",
+        "learning_rate",
+        "weight_decay",
+        "beta1",
+        "beta2",
+        "epsilon",
+        "head_chunk_tokens",
+        "gradient_clip_norm"
+      ],
+      "properties": {
+        "seed": {"type": "integer", "minimum": 0},
+        "epochs": {"type": "integer", "minimum": 1},
+        "learning_rate": {"type": "number", "exclusiveMinimum": 0},
+        "weight_decay": {"type": "number", "minimum": 0},
+        "beta1": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1},
+        "beta2": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1},
+        "epsilon": {"type": "number", "exclusiveMinimum": 0},
+        "head_chunk_tokens": {"type": "integer", "minimum": 1},
+        "gradient_clip_norm": {"type": "number", "exclusiveMinimum": 0}
+      }
+    },
+    "acceptance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["maximum_final_to_initial_loss_ratio", "require_all_samples_each_epoch"],
+      "properties": {
+        "maximum_final_to_initial_loss_ratio": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 1
+        },
+        "require_all_samples_each_epoch": {"const": true}
+      }
+    },
+    "artifact_root": {"type": "string", "pattern": "^/home/yueyulin/data/"}
+  }
+}

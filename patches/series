@@ -1,0 +1,4 @@
+rwkv-lm-nonjit-op-binding.patch
+rwkv-lm-configurable-lora-ranks.patch
+rwkv-lm-sm80-float2-atomic-fallback.patch
+rwkv-lm-packed-varlen-reset-mask.patch

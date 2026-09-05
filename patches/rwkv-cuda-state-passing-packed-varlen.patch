@@ -1,0 +1,351 @@
+diff --git a/rwkv7_fast_fused/cuda/rwkv7_statepassing_clampw.cpp b/rwkv7_fast_fused/cuda/rwkv7_statepassing_clampw.cpp
+index c08a269..a5b6f1f 100644
+--- a/rwkv7_fast_fused/cuda/rwkv7_statepassing_clampw.cpp
++++ b/rwkv7_fast_fused/cuda/rwkv7_statepassing_clampw.cpp
+@@ -1,4 +1,5 @@
+ #include <torch/extension.h>
++#include <cstdint>
+ 
+ #ifdef _FP32_
+     using bf = float;
+@@ -7,19 +8,25 @@
+     using bf = __nv_bfloat16;
+ #endif
+ 
+-void cuda_forward(int B, int T, int H, float*s0, bf*r, bf*w, bf*k, bf*v, bf*a, bf*b, bf*y, float*sT, float*s, float*sa);
++void cuda_forward(int B, int T, int H, float*s0, bf*r, bf*w, bf*k, bf*v, bf*a, bf*b, uint8_t*sequence_start_mask, bf*y, float*sT, float*s, float*sa);
+ 
+-void forward(torch::Tensor &s0, torch::Tensor &r, torch::Tensor &w, torch::Tensor &k, torch::Tensor &v, torch::Tensor &a, torch::Tensor &b, torch::Tensor &y, torch::Tensor &sT, torch::Tensor &s, torch::Tensor &sa) {
++void forward(torch::Tensor &s0, torch::Tensor &r, torch::Tensor &w, torch::Tensor &k, torch::Tensor &v, torch::Tensor &a, torch::Tensor &b, torch::Tensor &sequence_start_mask, torch::Tensor &y, torch::Tensor &sT, torch::Tensor &s, torch::Tensor &sa) {
+     int B = r.sizes()[0], T = r.sizes()[1], H = r.sizes()[2];
+-    cuda_forward(B, T, H, (float*)s0.data_ptr(), (bf*)r.data_ptr(), (bf*)w.data_ptr(), (bf*)k.data_ptr(), (bf*)v.data_ptr(), (bf*)a.data_ptr(), (bf*)b.data_ptr(), (bf*)y.data_ptr(), (float*)sT.data_ptr(), (float*)s.data_ptr(), (float*)sa.data_ptr());
++    TORCH_CHECK(sequence_start_mask.is_cuda() && sequence_start_mask.is_contiguous(), "sequence_start_mask must be contiguous CUDA");
++    TORCH_CHECK(sequence_start_mask.scalar_type() == torch::kUInt8, "sequence_start_mask must be uint8");
++    TORCH_CHECK(sequence_start_mask.dim() == 2 && sequence_start_mask.size(0) == B && sequence_start_mask.size(1) == T, "sequence_start_mask must have shape [B, T]");
++    cuda_forward(B, T, H, (float*)s0.data_ptr(), (bf*)r.data_ptr(), (bf*)w.data_ptr(), (bf*)k.data_ptr(), (bf*)v.data_ptr(), (bf*)a.data_ptr(), (bf*)b.data_ptr(), (uint8_t*)sequence_start_mask.data_ptr(), (bf*)y.data_ptr(), (float*)sT.data_ptr(), (float*)s.data_ptr(), (float*)sa.data_ptr());
+ }
+ 
+-void cuda_backward(int B, int T, int H, bf*r, bf*w, bf*k, bf*v, bf*a, bf*b, bf*dy, float*dsT, float*s, float*sa, float*ds0, bf*dr, bf*dw, bf*dk, bf*dv, bf*da, bf*db);
++void cuda_backward(int B, int T, int H, float*s0, bf*r, bf*w, bf*k, bf*v, bf*a, bf*b, uint8_t*sequence_start_mask, bf*dy, float*dsT, float*s, float*sa, float*ds0, bf*dr, bf*dw, bf*dk, bf*dv, bf*da, bf*db);
+ 
+-void backward(torch::Tensor &r, torch::Tensor &w, torch::Tensor &k, torch::Tensor &v, torch::Tensor &a, torch::Tensor &b, torch::Tensor &dy, torch::Tensor &dsT,
++void backward(torch::Tensor &s0, torch::Tensor &r, torch::Tensor &w, torch::Tensor &k, torch::Tensor &v, torch::Tensor &a, torch::Tensor &b, torch::Tensor &sequence_start_mask, torch::Tensor &dy, torch::Tensor &dsT,
+         torch::Tensor &s, torch::Tensor &sa, torch::Tensor &ds0, torch::Tensor &dr, torch::Tensor &dw, torch::Tensor &dk, torch::Tensor &dv, torch::Tensor &da, torch::Tensor &db) {
+     int B = r.sizes()[0], T = r.sizes()[1], H = r.sizes()[2];
+-    cuda_backward(B, T, H, (bf*)r.data_ptr(), (bf*)w.data_ptr(), (bf*)k.data_ptr(), (bf*)v.data_ptr(), (bf*)a.data_ptr(), (bf*)b.data_ptr(), (bf*)dy.data_ptr(), (float*)dsT.data_ptr(),
++    TORCH_CHECK(sequence_start_mask.is_cuda() && sequence_start_mask.is_contiguous(), "sequence_start_mask must be contiguous CUDA");
++    TORCH_CHECK(sequence_start_mask.scalar_type() == torch::kUInt8, "sequence_start_mask must be uint8");
++    TORCH_CHECK(sequence_start_mask.dim() == 2 && sequence_start_mask.size(0) == B && sequence_start_mask.size(1) == T, "sequence_start_mask must have shape [B, T]");
++    cuda_backward(B, T, H, (float*)s0.data_ptr(), (bf*)r.data_ptr(), (bf*)w.data_ptr(), (bf*)k.data_ptr(), (bf*)v.data_ptr(), (bf*)a.data_ptr(), (bf*)b.data_ptr(), (uint8_t*)sequence_start_mask.data_ptr(), (bf*)dy.data_ptr(), (float*)dsT.data_ptr(),
+             (float*)s.data_ptr(), (float*)sa.data_ptr(), (float*)ds0.data_ptr(), (bf*)dr.data_ptr(), (bf*)dw.data_ptr(), (bf*)dk.data_ptr(), (bf*)dv.data_ptr(), (bf*)da.data_ptr(), (bf*)db.data_ptr());
+ }
+ 
+diff --git a/rwkv7_fast_fused/cuda/rwkv7_statepassing_clampw.cu b/rwkv7_fast_fused/cuda/rwkv7_statepassing_clampw.cu
+index 821ced3..1bc5458 100644
+--- a/rwkv7_fast_fused/cuda/rwkv7_statepassing_clampw.cu
++++ b/rwkv7_fast_fused/cuda/rwkv7_statepassing_clampw.cu
+@@ -1,4 +1,5 @@
+ #include <assert.h>
++#include <stdint.h>
+ 
+ #ifdef _FP32_
+     using bf = float;
+@@ -18,7 +19,7 @@ constexpr float W_SCALE = -0.6065306597f; // -exp(-0.5)
+ //###################################################################################################### 
+ 
+ template<int N> __launch_bounds__(N,2)
+-__global__ void forward_kernel(int T,int H,float *__restrict__ s0_,F_ r_,F_ w_,F_ k_,F_ v_,F_ a_,F_ b_,bf* __restrict__ y_,float* sT_,float* s__,float* __restrict__ sa_)
++__global__ void forward_kernel(int T,int H,float *__restrict__ s0_,F_ r_,F_ w_,F_ k_,F_ v_,F_ a_,F_ b_,const uint8_t* __restrict__ sequence_start_mask_,bf* __restrict__ y_,float* sT_,float* s__,float* __restrict__ sa_)
+ {
+     const int bb=blockIdx.y, hh=blockIdx.x, i=threadIdx.x;
+     float* __restrict__ s_ = s__ + i64(bb*H+hh) * i64((T/_CHUNK_LEN_)*N*N);
+@@ -40,6 +41,13 @@ __global__ void forward_kernel(int T,int H,float *__restrict__ s0_,F_ r_,F_ w_,F
+     {
+         const int idx = ((bb*T+t)*H+hh)*N+i;
+ 
++        if (sequence_start_mask_[bb*T+t] != 0) {
++#pragma unroll
++            for (int j=0; j<N; ++j) {
++                state[j] = 0.0f;
++            }
++        }
++
+         __syncthreads();
+         r[i] = to_float(r_[idx]);
+         w[i] = __expf(W_SCALE / (1.0f + __expf(-to_float(w_[idx]))));
+@@ -79,19 +87,20 @@ __global__ void forward_kernel(int T,int H,float *__restrict__ s0_,F_ r_,F_ w_,F
+         sT_[j] = state[j];
+     }    
+ }
+-void cuda_forward(int B,int T,int H,float*s0,bf*r,bf*w,bf*k,bf*v,bf*a,bf*b,bf*y,float*sT,float*s,float*sa)
++void cuda_forward(int B,int T,int H,float*s0,bf*r,bf*w,bf*k,bf*v,bf*a,bf*b,uint8_t*sequence_start_mask,bf*y,float*sT,float*s,float*sa)
+ {
+-    forward_kernel<_N_><<<dim3(H,B),dim3(_N_)>>>(T,H,s0,r,w,k,v,a,b,y,sT,s,sa);
++    forward_kernel<_N_><<<dim3(H,B),dim3(_N_)>>>(T,H,s0,r,w,k,v,a,b,sequence_start_mask,y,sT,s,sa);
+ }
+ 
+ //###################################################################################################### 
+ 
+ template<int N>
+-__global__ void backward_kernel(int T, int H, F_ r_, F_ w_, F_ k_, F_ v_, F_ a_, F_ b_, F_ dy_, float* dsT_, float * __restrict__ s__, float * __restrict__ sa_, float* ds0_, bf* dr_, bf* dw_, bf* dk_, bf* dv_, bf* da_, bf* db_)
++__global__ void backward_kernel(int T, int H, const float* __restrict__ s0_, F_ r_, F_ w_, F_ k_, F_ v_, F_ a_, F_ b_, const uint8_t* __restrict__ sequence_start_mask_, F_ dy_, float* dsT_, float * __restrict__ s__, float * __restrict__ sa_, float* ds0_, bf* dr_, bf* dw_, bf* dk_, bf* dv_, bf* da_, bf* db_)
+ {
+     int bb = blockIdx.y, hh = blockIdx.x, i = threadIdx.x;
+     float* __restrict__ s_ = s__ + i64(bb*H+hh) * i64((T/_CHUNK_LEN_)*N*N);
+     const i64 s_shift = i64(bb*H+hh) * i64(N*N);
++    s0_ += s_shift + i64(i*N);
+     ds0_ += s_shift + i64(i*N);
+     dsT_ += s_shift;
+     float stateT[N], dstate[N], dstateT[N];
+@@ -101,11 +110,13 @@ __global__ void backward_kernel(int T, int H, F_ r_, F_ w_, F_ k_, F_ v_, F_ a_,
+         dstateT[j] = dsT_[j*N + i];
+     }
+     __shared__ float r[N], w[N], k[N], v[N], a[N], b[N], dy[N], sa[N], dSb_shared[N];
++    __shared__ float replay_state_matrix[N][N];
+     float ri, wi, ki, ai, bi, dyi;
+ 
+     for (int t = T-1; t >= 0; t--)
+     {
+         int idx = bb*T*H*N + t*H*N + hh * N + i;
++        const bool sequence_start = sequence_start_mask_[bb*T+t] != 0;
+ 
+         __syncthreads();
+         r[i] = ri = to_float(r_[idx]);
+@@ -143,7 +154,7 @@ __global__ void backward_kernel(int T, int H, F_ r_, F_ w_, F_ k_, F_ v_, F_ a_,
+         float iwi = 1.0f / wi;
+ #pragma unroll
+         for (int j = 0; j < N; j++) {
+-            stateT[j] = (stateT[j] - ki * v[j] - bi * sa[j]) * iwi;
++            stateT[j] = sequence_start ? 0.0f : (stateT[j] - ki * v[j] - bi * sa[j]) * iwi;
+             dstate[j] += dyi * r[j];
+             dstateT[j] += ri * dy[j];
+         }
+@@ -179,6 +190,65 @@ __global__ void backward_kernel(int T, int H, F_ r_, F_ w_, F_ k_, F_ v_, F_ a_,
+             dstate[j] = dstate[j] * w[j] + dSb * a[j];
+             dstateT[j] = dstateT[j] * wi + ai * dSb_shared[j];
+         }
++
++        if (sequence_start) {
++#pragma unroll
++            for (int j = 0; j < N; j++) {
++                dstate[j] = 0.0f;
++                dstateT[j] = 0.0f;
++            }
++
++            const int chunk_start = (t / _CHUNK_LEN_) * _CHUNK_LEN_;
++            if (chunk_start == 0) {
++#pragma unroll
++                for (int j = 0; j < N; j++) {
++                    stateT[j] = s0_[j];
++                }
++            } else {
++                const int base = (chunk_start/_CHUNK_LEN_-1)*N*N + i;
++#pragma unroll
++                for (int j = 0; j < N; j++) {
++                    stateT[j] = s_[base+j*N];
++                }
++            }
++
++            for (int u = chunk_start; u < t; u++) {
++                if (sequence_start_mask_[bb*T+u] != 0) {
++#pragma unroll
++                    for (int j = 0; j < N; j++) {
++                        stateT[j] = 0.0f;
++                    }
++                }
++                const int replay_idx = bb*T*H*N + u*H*N + hh*N + i;
++                __syncthreads();
++                w[i] = __expf(W_SCALE / (1.0f + __expf(-to_float(w_[replay_idx]))));
++                k[i] = to_float(k_[replay_idx]);
++                v[i] = to_float(v_[replay_idx]);
++                a[i] = to_float(a_[replay_idx]);
++                b[i] = to_float(b_[replay_idx]);
++                __syncthreads();
++                float replay_sa = 0.0f;
++#pragma unroll
++                for (int j = 0; j < N; j++) {
++                    replay_sa += stateT[j] * a[j];
++                }
++                const float replay_vi = v[i];
++#pragma unroll
++                for (int j = 0; j < N; j++) {
++                    stateT[j] = stateT[j] * w[j] + replay_sa * b[j] + k[j] * replay_vi;
++                }
++            }
++            __syncthreads();
++#pragma unroll
++            for (int j = 0; j < N; j++) {
++                replay_state_matrix[i][j] = stateT[j];
++            }
++            __syncthreads();
++#pragma unroll
++            for (int j = 0; j < N; j++) {
++                stateT[j] = replay_state_matrix[j][i];
++            }
++        }
+     }
+ #pragma unroll    
+     for (int j = 0; j < N; j++) {
+@@ -186,8 +256,8 @@ __global__ void backward_kernel(int T, int H, F_ r_, F_ w_, F_ k_, F_ v_, F_ a_,
+     }
+ }
+ 
+-void cuda_backward(int B, int T, int H, bf*r, bf*w, bf*k, bf*v, bf*a, bf*b, bf*dy, float*dsT, float*s, float*sa, float*ds0, bf*dr, bf*dw, bf*dk, bf*dv, bf*da, bf*db)
++void cuda_backward(int B, int T, int H, float*s0, bf*r, bf*w, bf*k, bf*v, bf*a, bf*b, uint8_t*sequence_start_mask, bf*dy, float*dsT, float*s, float*sa, float*ds0, bf*dr, bf*dw, bf*dk, bf*dv, bf*da, bf*db)
+ {
+     assert(T%_CHUNK_LEN_ == 0);
+-    backward_kernel<_N_><<<dim3(H,B), dim3(_N_)>>>(T,H,r,w,k,v,a,b,dy,dsT,s,sa,ds0,dr,dw,dk,dv,da,db);
++    backward_kernel<_N_><<<dim3(H,B), dim3(_N_)>>>(T,H,s0,r,w,k,v,a,b,sequence_start_mask,dy,dsT,s,sa,ds0,dr,dw,dk,dv,da,db);
+ }
+diff --git a/rwkv7_fast_fused/rwkv7_cuda_benchmark_state_passing.py b/rwkv7_fast_fused/rwkv7_cuda_benchmark_state_passing.py
+index 0e29d35..9a5102d 100644
+--- a/rwkv7_fast_fused/rwkv7_cuda_benchmark_state_passing.py
++++ b/rwkv7_fast_fused/rwkv7_cuda_benchmark_state_passing.py
+@@ -43,7 +43,7 @@ def err_ratio(x, y):
+ 
+ ######################################################################################################
+ 
+-def RWKV7_STATE_PASSING_CLAMPW_REF(state, r, w, k, v, a, b):
++def RWKV7_STATE_PASSING_CLAMPW_REF(state, r, w, k, v, a, b, sequence_start_mask):
+     r = r.view(B, T, H, N)
+     k = k.view(B, T, H, N)
+     v = v.view(B, T, H, N)
+@@ -56,6 +56,7 @@ def RWKV7_STATE_PASSING_CLAMPW_REF(state, r, w, k, v, a, b):
+     out = torch.zeros((B, T, H, N), device=DEVICE)
+ 
+     for t in range(T):
++        state = state.masked_fill(sequence_start_mask[:, t, None, None, None].bool(), 0)
+         rr = r[:, t, :]
+         kk = k[:, t, :]
+         vv = v[:, t, :]
+@@ -74,63 +75,65 @@ if DTYPE == torch.bfloat16:
+     load(name="rwkv7_statepassing_clampw", sources=[f'cuda/rwkv7_statepassing_clampw.cu', 'cuda/rwkv7_statepassing_clampw.cpp'], is_python_module=False, verbose=True, extra_cuda_cflags=flags)
+     class RWKV7_STATE_PASSING_CLAMPW_CUDA_OP(torch.autograd.Function):
+         @staticmethod
+-        def forward(ctx,s0,r,w,k,v,a,b):
++        def forward(ctx,s0,r,w,k,v,a,b,sequence_start_mask):
+             B,T,H,N = r.shape
+             assert T%CHUNK_LEN == 0
+             assert all(i.dtype==torch.bfloat16 for i in [r,w,k,v,a,b])
+-            assert all(i.is_contiguous() for i in [s0,r,w,k,v,a,b])
++            assert all(i.is_contiguous() for i in [s0,r,w,k,v,a,b,sequence_start_mask])
+             assert s0.dtype==torch.float
++            assert sequence_start_mask.dtype==torch.uint8 and sequence_start_mask.shape==(B,T)
+             y = torch.empty_like(v)
+             sT = torch.empty_like(s0)
+             s = torch.empty(B,H,T//CHUNK_LEN,N,N, dtype=torch.float32,device=w.device)
+             sa = torch.empty(B,T,H,N,dtype=torch.float32,device=w.device)
+-            torch.ops.rwkv7_statepassing_clampw.forward(s0,r,w,k,v,a,b,y,sT,s,sa)
+-            ctx.save_for_backward(r,w,k,v,a,b,s,sa)
++            torch.ops.rwkv7_statepassing_clampw.forward(s0,r,w,k,v,a,b,sequence_start_mask,y,sT,s,sa)
++            ctx.save_for_backward(s0,r,w,k,v,a,b,sequence_start_mask,s,sa)
+             return y.view(B,T,H*N),sT
+         @staticmethod
+         def backward(ctx,dy,dsT):
+             assert all(i.dtype==torch.bfloat16 for i in [dy])
+             assert all(i.is_contiguous() for i in [dy,dsT])
+             assert dsT.dtype==torch.float
+-            r,w,k,v,a,b,s,sa = ctx.saved_tensors
++            s0,r,w,k,v,a,b,sequence_start_mask,s,sa = ctx.saved_tensors
+             B,T,H,N = r.shape
+             ds0,dr,dw,dk,dv,da,db = [torch.empty_like(x) for x in [dsT,r,w,k,v,a,b]]
+-            torch.ops.rwkv7_statepassing_clampw.backward(r,w,k,v,a,b,dy,dsT,s,sa,ds0,dr,dw,dk,dv,da,db)
+-            return ds0,dr,dw,dk,dv,da,db
+-    def RWKV7_STATE_PASSING_CLAMPW_CUDA(s0,r,w,k,v,a,b):
++            torch.ops.rwkv7_statepassing_clampw.backward(s0,r,w,k,v,a,b,sequence_start_mask,dy,dsT,s,sa,ds0,dr,dw,dk,dv,da,db)
++            return ds0,dr,dw,dk,dv,da,db,None
++    def RWKV7_STATE_PASSING_CLAMPW_CUDA(s0,r,w,k,v,a,b,sequence_start_mask):
+         B,T,HC = r.shape
+         r,w,k,v,a,b = [i.view(B,T,HC//HEAD_SIZE,HEAD_SIZE) for i in [r,w,k,v,a,b]]
+-        return RWKV7_STATE_PASSING_CLAMPW_CUDA_OP.apply(s0,r,w,k,v,a,b)
++        return RWKV7_STATE_PASSING_CLAMPW_CUDA_OP.apply(s0,r,w,k,v,a,b,sequence_start_mask)
+ 
+ elif DTYPE == torch.float:
+     flags = ['-res-usage', f'-D_N_={HEAD_SIZE}', "-D_FP32_", f"-D_CHUNK_LEN_={CHUNK_LEN}", "--use_fast_math", "-O3", "-Xptxas -O3", "--extra-device-vectorization"]
+     load(name="rwkv7_statepassing_clampw", sources=[f'cuda/rwkv7_statepassing_clampw.cu', 'cuda/rwkv7_statepassing_clampw.cpp'], is_python_module=False, verbose=True, extra_cflags=["-D_FP32_"], extra_cuda_cflags=flags)
+     class RWKV7_STATE_PASSING_CLAMPW_CUDA_OP(torch.autograd.Function):
+         @staticmethod
+-        def forward(ctx,s0,r,w,k,v,a,b):
++        def forward(ctx,s0,r,w,k,v,a,b,sequence_start_mask):
+             B,T,H,C = r.shape 
+             assert T%CHUNK_LEN == 0
+             assert all(i.dtype==torch.float32 for i in [s0,r,w,k,v,a,b])
+-            assert all(i.is_contiguous() for i in [s0,r,w,k,v,a,b])
++            assert all(i.is_contiguous() for i in [s0,r,w,k,v,a,b,sequence_start_mask])
++            assert sequence_start_mask.dtype==torch.uint8 and sequence_start_mask.shape==(B,T)
+             y = torch.empty_like(r)
+             sT = torch.empty_like(s0)
+             s = torch.empty(B,H,T//CHUNK_LEN,C,C, dtype=torch.float32,device=w.device)
+             sa = torch.empty(B,T,H,C, dtype=torch.float32,device=w.device)
+-            torch.ops.rwkv7_statepassing_clampw.forward(s0,r,w,k,v,a,b,y,sT,s,sa)
+-            ctx.save_for_backward(r,w,k,v,a,b,s,sa)
++            torch.ops.rwkv7_statepassing_clampw.forward(s0,r,w,k,v,a,b,sequence_start_mask,y,sT,s,sa)
++            ctx.save_for_backward(s0,r,w,k,v,a,b,sequence_start_mask,s,sa)
+             return y.view(B,T,H*N),sT
+         @staticmethod
+         def backward(ctx,dy,dsT):
+             assert all(i.dtype==torch.float32 for i in [dy,dsT])
+             assert all(i.is_contiguous() for i in [dy,dsT])
+-            r,w,k,v,a,b,s,sa = ctx.saved_tensors
++            s0,r,w,k,v,a,b,sequence_start_mask,s,sa = ctx.saved_tensors
+             ds0,dr,dw,dk,dv,da,db = [torch.empty_like(x) for x in [dsT,r,w,k,v,a,b]]
+-            torch.ops.rwkv7_statepassing_clampw.backward(r,w,k,v,a,b,dy,dsT,s,sa,ds0,dr,dw,dk,dv,da,db)
+-            return ds0,dr,dw,dk,dv,da,db
+-    def RWKV7_STATE_PASSING_CLAMPW_CUDA(s0,r,w,k,v,a,b):
++            torch.ops.rwkv7_statepassing_clampw.backward(s0,r,w,k,v,a,b,sequence_start_mask,dy,dsT,s,sa,ds0,dr,dw,dk,dv,da,db)
++            return ds0,dr,dw,dk,dv,da,db,None
++    def RWKV7_STATE_PASSING_CLAMPW_CUDA(s0,r,w,k,v,a,b,sequence_start_mask):
+         B,T,HC = r.shape
+         r,w,k,v,a,b = [i.view(B,T,HC//HEAD_SIZE,HEAD_SIZE) for i in [r,w,k,v,a,b]]
+-        return RWKV7_STATE_PASSING_CLAMPW_CUDA_OP.apply(s0,r,w,k,v,a,b)
++        return RWKV7_STATE_PASSING_CLAMPW_CUDA_OP.apply(s0,r,w,k,v,a,b,sequence_start_mask)
+ 
+ ######################################################################################################
+ 
+@@ -145,6 +148,8 @@ with torch.no_grad():
+     b = F.normalize(b, dim=-1, p=2.0)
+     s = torch.empty(B, H, N, N, device=DEVICE).uniform_(-1, 1) * 10
+ 
++sequence_start_mask = torch.zeros(B,T,dtype=torch.uint8,device=DEVICE)
++sequence_start_mask[:,19] = 1
+ params = (s,r,w,k,v,a,b)
+ 
+ def LOSS(y,sT):
+@@ -160,16 +165,16 @@ def clear_grad():
+ 
+ if not BENCHMARK_SPEED:
+     clear_grad()
+-    y,sT = RWKV7_STATE_PASSING_CLAMPW_REF(*params)
++    y,sT = RWKV7_STATE_PASSING_CLAMPW_REF(*params,sequence_start_mask)
+     LOSS(y,sT).backward()
+     grad_ref = [t.grad.detach().clone() for t in params]
+ 
+     clear_grad()
+     if DTYPE == torch.float:
+-        y_cuda,sT_cuda = RWKV7_STATE_PASSING_CLAMPW_CUDA(*params)
++        y_cuda,sT_cuda = RWKV7_STATE_PASSING_CLAMPW_CUDA(*params,sequence_start_mask)
+     else:
+         ss,rr,ww,kk,vv,aa,bb = s,r.bfloat16(),w.bfloat16(),k.bfloat16(),v.bfloat16(),a.bfloat16(),b.bfloat16()
+-        y_cuda,sT_cuda = RWKV7_STATE_PASSING_CLAMPW_CUDA(ss,rr,ww,kk,vv,aa,bb)
++        y_cuda,sT_cuda = RWKV7_STATE_PASSING_CLAMPW_CUDA(ss,rr,ww,kk,vv,aa,bb,sequence_start_mask)
+         y_cuda = y_cuda.float()
+     LOSS(y_cuda,sT_cuda).backward()
+     grad_cuda = [t.grad.detach().clone() for t in params]
+@@ -189,7 +194,7 @@ else:
+ 
+         if DTYPE == torch.float:
+             torch.cuda.synchronize(); t0 = time.perf_counter()
+-            y_cuda,sT_cuda = RWKV7_STATE_PASSING_CLAMPW_CUDA(*params)
++            y_cuda,sT_cuda = RWKV7_STATE_PASSING_CLAMPW_CUDA(*params,sequence_start_mask)
+             torch.cuda.synchronize(); fwd_times.append(time.perf_counter() - t0)
+ 
+             torch.cuda.synchronize(); t0 = time.perf_counter()
+@@ -198,7 +203,7 @@ else:
+         else:
+             ss,rr,ww,kk,vv,aa,bb = s,r.bfloat16(),w.bfloat16(),k.bfloat16(),v.bfloat16(),a.bfloat16(),b.bfloat16()
+             torch.cuda.synchronize(); t0 = time.perf_counter()
+-            y_cuda,sT_cuda = RWKV7_STATE_PASSING_CLAMPW_CUDA(ss,rr,ww,kk,vv,aa,bb)
++            y_cuda,sT_cuda = RWKV7_STATE_PASSING_CLAMPW_CUDA(ss,rr,ww,kk,vv,aa,bb,sequence_start_mask)
+             torch.cuda.synchronize(); fwd_times.append(time.perf_counter() - t0)
+ 
+             torch.cuda.synchronize(); t0 = time.perf_counter()

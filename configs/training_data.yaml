@@ -1,0 +1,61 @@
+schema_version: 1
+
+tokenizer:
+  implementation: src.training.tokenizer.RWKVByteTokenizer
+  vocabulary: external/RWKV-LM/RWKV-v7/rwkv_vocab_v20230424.txt
+  sha256: e6dee3d4e31b4d5c40ac99508ac6c701ceef4bed681bf2167ce9a908552bca89
+  model_vocabulary_size: 65536
+  eod_token_id: 0
+  defined_byte_token_ids: [1, 65529]
+  undefined_reserved_model_token_ids: [65530, 65531, 65532, 65533, 65534, 65535]
+
+serialization:
+  template: rwkv_g1_agent_v1
+  include_tool_schema: true
+  tool_call_open: <tool_call>
+  tool_call_close: </tool_call>
+  tool_response_open: <tool_response>
+  tool_response_close: </tool_response>
+  unknown_role_policy: reject
+  cross_loss_region_token_policy: mask
+
+loss:
+  system: 0.0
+  user: 0.0
+  tool_schema: 0.0
+  tool_response: 0.0
+  assistant_prefix: 0.0
+  assistant_reasoning: 1.0
+  assistant_final: 1.0
+  assistant_action: 2.0
+  source_loss_mask_false: 0.0
+  supervise_assistant_turn_end: true
+  supervise_terminal_eod: true
+
+decision_windows:
+  max_tokens: 16384
+  current_assistant_only: true
+  history_policy: left_drop_at_message_boundaries
+  retain_system_and_developer_messages: true
+  overlong_current_decision_policy: reject
+  note: This is the independent-reset SFT path; stateful episode continuation is owned by M-03.
+
+packing:
+  implementation: src.training.episode_collator.PackedEpisodeCollator
+  sequence_contract: independent_decision_windows
+  cu_seqlens_dtype: int32
+  sequence_start_mask_dtype: uint8
+  chunk_alignment: 16
+  max_tail_alignment_tokens: 15
+  cross_sequence_target_policy: forbidden
+  row_batching_owner: token_budget_sampler
+  sampler:
+    implementation: src.training.token_budget_sampler.TokenBudgetPackSampler
+    algorithm: seeded_bucket_best_fit_decreasing
+    seed: 20260904
+    bucket_size: 2048
+    shuffle: true
+    distributed_partition: disjoint_row_striping
+    distributed_tail: drop_global_tail_rows
+    set_epoch_required: true
+    sequence_contract: independent_reset_decisions_only

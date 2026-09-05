@@ -1,0 +1,80 @@
+schema_version: 2
+
+policy: rwkv7_official_plus_v0
+namespaces:
+  base_model: network
+  latent_control: latent_control
+  value_readout: value_readout
+
+official_reference:
+  source: external/RWKV-LM/RWKV-v7/train_temp/src/model.py
+  revision: 9a75f9f037afa4418ee6283b584b92b1adb89ca1
+  rules:
+    - name: base_lr_2x_no_decay
+      match: att.w0
+      lr_scale: 2.0
+      weight_decay: 0.0
+    - name: base_lr_1x_decay
+      match: squeezed_rank_gte_2_and_dot_weight_when_decay_enabled
+      lr_scale: 1.0
+      weight_decay: configured
+    - name: base_lr_1x_no_decay
+      match: remaining_known_base_parameters
+      lr_scale: 1.0
+      weight_decay: 0.0
+
+added_parameters:
+  latent_embedding:
+    full_name: latent_control.latent_embedding
+    initializer: mean_pretrained_token_embedding
+    lr_scale: 1.0
+    weight_decay: 0.0
+  depth_embedding:
+    full_name: latent_control.depth_embedding
+    initializer: zeros
+    lr_scale: 1.0
+    weight_decay: 0.0
+  value_outcomes_weight:
+    full_name: value_readout.outcomes.weight
+    initializer: orthogonal_gain_0.01
+    lr_scale: 1.0
+    weight_decay: 0.0
+  value_outcomes_bias:
+    full_name: value_readout.outcomes.bias
+    initializer: zeros
+    lr_scale: 1.0
+    weight_decay: 0.0
+  value_remaining_turns_weight:
+    full_name: value_readout.remaining_turns_head.weight
+    initializer: orthogonal_gain_0.01
+    lr_scale: 1.0
+    weight_decay: 0.0
+  value_remaining_turns_bias:
+    full_name: value_readout.remaining_turns_head.bias
+    initializer: zeros
+    lr_scale: 1.0
+    weight_decay: 0.0
+
+optimizer_reference:
+  family: Adam
+  beta1: 0.9
+  beta2: 0.99
+  epsilon: 1.0e-18
+  bias_correction: true
+  amsgrad: false
+
+precision_policy:
+  model_parameter_dtype: bfloat16
+  full_parameter_master_weights: float32_required
+  optimizer_moments: float32_required
+  local_single_gpu_implementation: src.training.parameter_groups.FP32MasterAdamW
+  distributed_implementation: deepspeed_fp32_master_equivalent_pending_validation
+  direct_bfloat16_adamw: forbidden_for_full_parameter_training
+
+run_hyperparameters:
+  status: unselected_until_a0_agent_data_overfit
+  lr_init: null
+  lr_final: null
+  warmup_tokens: null
+  weight_decay: null
+  grad_clip: null

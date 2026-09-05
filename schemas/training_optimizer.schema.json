@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://long-long-agent.local/schemas/training_optimizer.schema.json",
+  "title": "RWKV-7 training optimizer policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "policy",
+    "namespaces",
+    "official_reference",
+    "added_parameters",
+    "optimizer_reference",
+    "precision_policy",
+    "run_hyperparameters"
+  ],
+  "properties": {
+    "schema_version": {"const": 2},
+    "policy": {"const": "rwkv7_official_plus_v0"},
+    "namespaces": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["base_model", "latent_control", "value_readout"],
+      "properties": {
+        "base_model": {"const": "network"},
+        "latent_control": {"const": "latent_control"},
+        "value_readout": {"const": "value_readout"}
+      }
+    },
+    "official_reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "revision", "rules"],
+      "properties": {
+        "source": {"type": "string", "minLength": 1},
+        "revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "rules": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "match", "lr_scale", "weight_decay"],
+            "properties": {
+              "name": {"type": "string", "minLength": 1},
+              "match": {"type": "string", "minLength": 1},
+              "lr_scale": {"type": "number", "exclusiveMinimum": 0},
+              "weight_decay": {"oneOf": [{"type": "number", "minimum": 0}, {"const": "configured"}]}
+            }
+          }
+        }
+      }
+    },
+    "added_parameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "latent_embedding",
+        "depth_embedding",
+        "value_outcomes_weight",
+        "value_outcomes_bias",
+        "value_remaining_turns_weight",
+        "value_remaining_turns_bias"
+      ],
+      "properties": {
+        "latent_embedding": {"$ref": "#/$defs/addedParameter"},
+        "depth_embedding": {"$ref": "#/$defs/addedParameter"},
+        "value_outcomes_weight": {"$ref": "#/$defs/addedParameter"},
+        "value_outcomes_bias": {"$ref": "#/$defs/addedParameter"},
+        "value_remaining_turns_weight": {"$ref": "#/$defs/addedParameter"},
+        "value_remaining_turns_bias": {"$ref": "#/$defs/addedParameter"}
+      }
+    },
+    "optimizer_reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["family", "beta1", "beta2", "epsilon", "bias_correction", "amsgrad"],
+      "properties": {
+        "family": {"const": "Adam"},
+        "beta1": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1},
+        "beta2": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1},
+        "epsilon": {"type": "number", "exclusiveMinimum": 0},
+        "bias_correction": {"const": true},
+        "amsgrad": {"const": false}
+      }
+    },
+    "precision_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model_parameter_dtype",
+        "full_parameter_master_weights",
+        "optimizer_moments",
+        "local_single_gpu_implementation",
+        "distributed_implementation",
+        "direct_bfloat16_adamw"
+      ],
+      "properties": {
+        "model_parameter_dtype": {"const": "bfloat16"},
+        "full_parameter_master_weights": {"const": "float32_required"},
+        "optimizer_moments": {"const": "float32_required"},
+        "local_single_gpu_implementation": {
+          "const": "src.training.parameter_groups.FP32MasterAdamW"
+        },
+        "distributed_implementation": {
+          "const": "deepspeed_fp32_master_equivalent_pending_validation"
+        },
+        "direct_bfloat16_adamw": {"const": "forbidden_for_full_parameter_training"}
+      }
+    },
+    "run_hyperparameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "lr_init", "lr_final", "warmup_tokens", "weight_decay", "grad_clip"],
+      "properties": {
+        "status": {"const": "unselected_until_a0_agent_data_overfit"},
+        "lr_init": {"type": ["number", "null"], "minimum": 0},
+        "lr_final": {"type": ["number", "null"], "minimum": 0},
+        "warmup_tokens": {"type": ["integer", "null"], "minimum": 0},
+        "weight_decay": {"type": ["number", "null"], "minimum": 0},
+        "grad_clip": {"type": ["number", "null"], "exclusiveMinimum": 0}
+      }
+    }
+  },
+  "$defs": {
+    "addedParameter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["full_name", "initializer", "lr_scale", "weight_decay"],
+      "properties": {
+        "full_name": {"type": "string", "minLength": 1},
+        "initializer": {"type": "string", "minLength": 1},
+        "lr_scale": {"type": "number", "exclusiveMinimum": 0},
+        "weight_decay": {"const": 0.0}
+      }
+    }
+  }
+}

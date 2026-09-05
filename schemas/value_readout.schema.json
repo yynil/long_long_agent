@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://long-long-agent.local/schemas/value_readout.schema.json",
+  "title": "RWKV-7 environment value readout",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "input",
+    "architecture",
+    "binary_tasks",
+    "regression_tasks",
+    "loss",
+    "label_status"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "flatten_wkv_state"],
+      "properties": {
+        "source": {"const": "top_layer_hidden"},
+        "flatten_wkv_state": {"const": false}
+      }
+    },
+    "architecture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "binary_output_count",
+        "remaining_turns_output",
+        "weight_initializer",
+        "initializer_gain",
+        "bias_initializer"
+      ],
+      "properties": {
+        "type": {"const": "independent_linear_heads"},
+        "binary_output_count": {"const": 8},
+        "remaining_turns_output": {"const": "log1p"},
+        "weight_initializer": {"const": "orthogonal"},
+        "initializer_gain": {"type": "number", "exclusiveMinimum": 0},
+        "bias_initializer": {"const": "zeros"}
+      }
+    },
+    "binary_tasks": {
+      "const": [
+        "parse_valid",
+        "exec_valid",
+        "new_information",
+        "immediate_progress",
+        "regression",
+        "next_milestone_within_4_turns",
+        "next_milestone_within_16_turns",
+        "terminal_success"
+      ]
+    },
+    "regression_tasks": {"const": ["remaining_turns"]},
+    "loss": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "binary",
+        "remaining_turns",
+        "missing_label",
+        "aggregation",
+        "zero_active_labels",
+        "task_weights"
+      ],
+      "properties": {
+        "binary": {"const": "binary_cross_entropy_with_logits"},
+        "remaining_turns": {"const": "smooth_l1_on_log1p_target"},
+        "missing_label": {"const": "explicit_boolean_mask"},
+        "aggregation": {"const": "equal_weight_mean_over_active_tasks"},
+        "zero_active_labels": {"const": "reject"},
+        "task_weights": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "parse_valid",
+            "exec_valid",
+            "new_information",
+            "immediate_progress",
+            "regression",
+            "next_milestone_within_4_turns",
+            "next_milestone_within_16_turns",
+            "terminal_success",
+            "remaining_turns"
+          ],
+          "properties": {
+            "parse_valid": {"type": "number", "minimum": 0},
+            "exec_valid": {"type": "number", "minimum": 0},
+            "new_information": {"type": "number", "minimum": 0},
+            "immediate_progress": {"type": "number", "minimum": 0},
+            "regression": {"type": "number", "minimum": 0},
+            "next_milestone_within_4_turns": {"type": "number", "minimum": 0},
+            "next_milestone_within_16_turns": {"type": "number", "minimum": 0},
+            "terminal_success": {"type": "number", "minimum": 0},
+            "remaining_turns": {"type": "number", "minimum": 0}
+          }
+        }
+      }
+    },
+    "label_status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canonical_v1_available",
+        "canonical_field_mapping",
+        "requires_schema_migration"
+      ],
+      "properties": {
+        "canonical_v1_available": {
+          "type": "array",
+          "items": {"type": "string"},
+          "uniqueItems": true
+        },
+        "canonical_field_mapping": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "parse_valid",
+            "exec_valid",
+            "new_information",
+            "immediate_progress",
+            "regression",
+            "next_milestone_within_4_turns",
+            "next_milestone_within_16_turns",
+            "terminal_success",
+            "remaining_turns"
+          ],
+          "properties": {
+            "parse_valid": {"const": "parse_valid"},
+            "exec_valid": {"const": "exec_valid"},
+            "new_information": {"const": "new_information"},
+            "immediate_progress": {"const": "immediate_progress"},
+            "regression": {"const": "regression"},
+            "next_milestone_within_4_turns": {"const": "h4_progress"},
+            "next_milestone_within_16_turns": {"const": "h16_progress"},
+            "terminal_success": {"const": "terminal_success"},
+            "remaining_turns": {"type": "null"}
+          }
+        },
+        "requires_schema_migration": {"const": ["remaining_turns"]}
+      }
+    }
+  }
+}

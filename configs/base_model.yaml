@@ -1,0 +1,155 @@
+schema_version: 1
+
+upstream:
+  repo: https://github.com/BlinkDL/RWKV-LM.git
+  revision: 9a75f9f037afa4418ee6283b584b92b1adb89ca1
+  reference_dir: RWKV-v7/train_temp
+
+state_passing_upstream:
+  repo: https://github.com/BlinkDL/RWKV-CUDA.git
+  revision: 9b17d5d80a0e9d2cbf090590725672464daa3aee
+  reference_dir: rwkv7_fast_fused
+
+state_passing_compatibility_patch_series:
+  order_file: patches/rwkv-cuda-series
+  patches:
+    - path: patches/rwkv-cuda-state-passing-packed-varlen.patch
+      sha256: d0fbdc3e7c8060f1555155af25e1257980e5353bb2135ed32c623b2b72e77fa5
+
+compatibility_patch_series:
+  order_file: patches/series
+  patches:
+    - path: patches/rwkv-lm-nonjit-op-binding.patch
+      sha256: 848a0c204bb01cd8bc8431614ee4fcb8ff96125e52813a25113d1698a427d264
+    - path: patches/rwkv-lm-configurable-lora-ranks.patch
+      sha256: 18cf18ad39dc6ca1ec5c29b7978f45613c96df2afe07e7eb1477986117a937ee
+    - path: patches/rwkv-lm-sm80-float2-atomic-fallback.patch
+      sha256: d960743b8242f1923788ab3265036d10671ee8ff032ecfac39051aa8b3a1803a
+    - path: patches/rwkv-lm-packed-varlen-reset-mask.patch
+      sha256: 429209f46a40afec69881695bb4322ec689056de4740a54eda3dfc1707aa59e7
+
+packed_varlen:
+  contract: cu_seqlens_plus_sequence_start_mask
+  cuda_mask_dtype: uint8
+  chunk_alignment: 16
+  max_tail_alignment_tokens: 15
+  reset_paths:
+    - wkv_matrix
+    - time_mix_previous_x
+    - channel_mix_previous_x
+  training_required: true
+  prototype_status: local_sm86_full_sequence_and_state_passing_passed
+
+stateful_window:
+  schema_version: 1
+  implementation: src/model/rwkv7_stateful.py
+  persistent_layer_fields:
+    - time_mix_previous_x
+    - wkv_matrix
+    - channel_mix_previous_x
+  previous_x_dtype: model_activation_dtype
+  wkv_matrix_dtype: float32
+  chunk_alignment: 16
+  default_gradient_policy: preserve_graph
+  explicit_truncated_bptt: detach_state
+  prototype_status: local_sm86_real_0_4b_passed
+
+slow_fast_ownership:
+  implementation: src/model/slow_fast_state.py
+  fast_origin: deep_clone_of_slow_at_decision_boundary
+  fast_to_slow_commit: forbidden
+  slow_advance_source: confirmed_normal_token_forward
+  decision_metadata:
+    - decision_id
+    - slow_revision
+    - fast_steps
+  prototype_status: local_sm86_real_0_4b_passed
+
+latent_v0:
+  implementation: src/model/latent_v0.py
+  input_formula: e_latent_plus_e_depth_k
+  max_depth: 16
+  training_depths: [0, 1, 2, 4, 8]
+  evaluation_depths: [0, 1, 2, 4, 8, 16]
+  lm_head_during_latent: disabled
+  inner_gradient_policy: full_bptt
+  short_window_wkv_backend: differentiable_pytorch_reference
+  prototype_initialization:
+    latent_embedding: mean_pretrained_token_embedding
+    depth_embedding: zeros
+  prototype_status: local_sm86_real_0_4b_passed
+
+model_repo:
+  repo_id: BlinkDL/rwkv7-g1
+  repo_type: model
+  revision: 53b2ec91e3c68c90fe1ae9b878fc4ce0b15d69f0
+  license: apache-2.0
+
+tokenizer:
+  source: RWKV-v7/rwkv_vocab_v20230424.txt
+  sha256: e6dee3d4e31b4d5c40ac99508ac6c701ceef4bed681bf2167ce9a908552bca89
+  vocab_size: 65536
+  defined_byte_token_count: 65529
+  maximum_defined_token_id: 65529
+  eod_token_id: 0
+  undefined_reserved_model_token_ids: [65530, 65531, 65532, 65533, 65534, 65535]
+
+prompt_templates:
+  source: RWKV-v7/RWKV7-G1x-templates.txt
+  sha256: 21dd0a38bc907c1d070742c19a8f83fcc57eec462f62dfabb84569851256d441
+
+checkpoints:
+  smoke:
+    file: rwkv7-g1d-0.4b-20260210-ctx8192.pth
+    size_bytes: 901776749
+    sha256: 947cb9b8013224e06b112b72204256bec65096cc935a7767ce63d8e3ddef83bb
+    architecture:
+      layers: 24
+      embedding_dim: 1024
+      context_length: 8192
+      head_size: 64
+      deep_embed: false
+      decay_lora_rank: 64
+      aaa_lora_rank: 64
+      mv_lora_rank: 32
+      gate_lora_rank: 128
+  local_v0:
+    file: rwkv7-g1j-1.5b-20260831-ctx16384.pth
+    size_bytes: 3055444605
+    sha256: c43176881caf85fe22ad654ab02e7519260d560f3d20420ab590adb0c823860f
+    architecture:
+      layers: 24
+      embedding_dim: 2048
+      context_length: 16384
+      head_size: 64
+      deep_embed: false
+      decay_lora_rank: 96
+      aaa_lora_rank: 96
+      mv_lora_rank: 64
+      gate_lora_rank: 256
+  remote_candidate_2_9b:
+    file: rwkv7-g1j-2.9b-20260831-ctx16384.pth
+    size_bytes: 5896273469
+    sha256: 966f3420f833532aae3fb1fd6326533b08d43d23b7b03eaa2f0694a30b64a239
+    architecture:
+      layers: 32
+      embedding_dim: 2560
+      context_length: 16384
+      head_size: 64
+      deep_embed: false
+    download_now: false
+  remote_candidate_7_2b:
+    file: rwkv7-g1j-7.2b-20260831-ctx16384.pth
+    size_bytes: 14400007869
+    sha256: e3091a579c23ea7ebce9a0ad1ecfbda27082eeecd64d7f0474016e626df8f9c3
+    architecture:
+      layers: 32
+      embedding_dim: 4096
+      context_length: 16384
+      head_size: 64
+      deep_embed: false
+    download_now: false
+
+initial_download_roles:
+  - smoke
+  - local_v0

@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://long-long-agent.local/schemas/rwkv_tiny_overfit.schema.json",
+  "title": "Real RWKV packed SFT diagnostic configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "purpose",
+    "base_model",
+    "fixture",
+    "packing",
+    "optimization",
+    "acceptance",
+    "artifact_root"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "purpose": {"const": "real_rwkv_packed_sft_trainer_diagnostic"},
+    "base_model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "upstream_revision",
+        "checkpoint_file",
+        "checkpoint_sha256",
+        "tokenizer_sha256",
+        "layers",
+        "embedding_dim",
+        "context_length",
+        "head_size",
+        "decay_lora_rank",
+        "aaa_lora_rank",
+        "mv_lora_rank",
+        "gate_lora_rank"
+      ],
+      "properties": {
+        "upstream_revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "checkpoint_file": {"type": "string", "minLength": 1},
+        "checkpoint_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "tokenizer_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "layers": {"type": "integer", "minimum": 1},
+        "embedding_dim": {"type": "integer", "minimum": 1},
+        "context_length": {"type": "integer", "minimum": 16},
+        "head_size": {"const": 64},
+        "decay_lora_rank": {"type": "integer", "minimum": 1},
+        "aaa_lora_rank": {"type": "integer", "minimum": 1},
+        "mv_lora_rank": {"type": "integer", "minimum": 1},
+        "gate_lora_rank": {"type": "integer", "minimum": 1}
+      }
+    },
+    "fixture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "sample_counts", "source_revision"],
+      "properties": {
+        "kind": {"const": "synthetic_agent_decisions"},
+        "sample_counts": {"const": [32, 128]},
+        "source_revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+      }
+    },
+    "packing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_tokens", "alignment", "sampler_seed", "bucket_size"],
+      "properties": {
+        "max_tokens": {"type": "integer", "minimum": 16, "maximum": 8192},
+        "alignment": {"const": 16},
+        "sampler_seed": {"type": "integer", "minimum": 0},
+        "bucket_size": {"type": "integer", "minimum": 1}
+      }
+    },
+    "optimization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "optimizer_state",
+        "seed",
+        "epochs",
+        "learning_rate",
+        "weight_decay",
+        "beta1",
+        "beta2",
+        "epsilon",
+        "fused_adamw",
+        "head_chunk_tokens",
+        "gradient_clip_norm"
+      ],
+      "properties": {
+        "mode": {
+          "enum": ["head_only_diagnostic", "full_parameter_diagnostic"]
+        },
+        "optimizer_state": {
+          "enum": ["parameter_dtype", "fp32_master"]
+        },
+        "seed": {"type": "integer", "minimum": 0},
+        "epochs": {"type": "integer", "minimum": 1},
+        "learning_rate": {"type": "number", "exclusiveMinimum": 0},
+        "weight_decay": {"type": "number", "minimum": 0},
+        "beta1": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1},
+        "beta2": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1},
+        "epsilon": {"type": "number", "exclusiveMinimum": 0},
+        "fused_adamw": {"const": true},
+        "head_chunk_tokens": {"type": "integer", "minimum": 1},
+        "gradient_clip_norm": {"type": "number", "exclusiveMinimum": 0}
+      }
+    },
+    "acceptance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "maximum_final_to_initial_loss_ratio",
+        "maximum_epoch_to_previous_loss_ratio",
+        "require_all_samples_each_epoch"
+      ],
+      "properties": {
+        "maximum_final_to_initial_loss_ratio": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 1
+        },
+        "maximum_epoch_to_previous_loss_ratio": {
+          "type": "number",
+          "minimum": 1
+        },
+        "require_all_samples_each_epoch": {"const": true}
+      }
+    },
+    "artifact_root": {"type": "string", "pattern": "^/home/yueyulin/data/"}
+  }
+}

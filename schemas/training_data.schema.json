@@ -1,0 +1,158 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://long-long-agent.local/schemas/training_data.schema.json",
+  "title": "RWKV-7 Agent training data contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "tokenizer", "serialization", "loss", "decision_windows", "packing"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "tokenizer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "implementation",
+        "vocabulary",
+        "sha256",
+        "model_vocabulary_size",
+        "eod_token_id",
+        "defined_byte_token_ids",
+        "undefined_reserved_model_token_ids"
+      ],
+      "properties": {
+        "implementation": {"const": "src.training.tokenizer.RWKVByteTokenizer"},
+        "vocabulary": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "model_vocabulary_size": {"const": 65536},
+        "eod_token_id": {"const": 0},
+        "defined_byte_token_ids": {"const": [1, 65529]},
+        "undefined_reserved_model_token_ids": {"const": [65530, 65531, 65532, 65533, 65534, 65535]}
+      }
+    },
+    "serialization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "template",
+        "include_tool_schema",
+        "tool_call_open",
+        "tool_call_close",
+        "tool_response_open",
+        "tool_response_close",
+        "unknown_role_policy",
+        "cross_loss_region_token_policy"
+      ],
+      "properties": {
+        "template": {"const": "rwkv_g1_agent_v1"},
+        "include_tool_schema": {"type": "boolean"},
+        "tool_call_open": {"const": "<tool_call>"},
+        "tool_call_close": {"const": "</tool_call>"},
+        "tool_response_open": {"const": "<tool_response>"},
+        "tool_response_close": {"const": "</tool_response>"},
+        "unknown_role_policy": {"const": "reject"},
+        "cross_loss_region_token_policy": {"const": "mask"}
+      }
+    },
+    "loss": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "system",
+        "user",
+        "tool_schema",
+        "tool_response",
+        "assistant_prefix",
+        "assistant_reasoning",
+        "assistant_final",
+        "assistant_action",
+        "source_loss_mask_false",
+        "supervise_assistant_turn_end",
+        "supervise_terminal_eod"
+      ],
+      "properties": {
+        "system": {"const": 0.0},
+        "user": {"const": 0.0},
+        "tool_schema": {"const": 0.0},
+        "tool_response": {"const": 0.0},
+        "assistant_prefix": {"const": 0.0},
+        "assistant_reasoning": {"type": "number", "minimum": 0},
+        "assistant_final": {"type": "number", "minimum": 0},
+        "assistant_action": {"type": "number", "minimum": 0},
+        "source_loss_mask_false": {"const": 0.0},
+        "supervise_assistant_turn_end": {"type": "boolean"},
+        "supervise_terminal_eod": {"type": "boolean"}
+      }
+    },
+    "decision_windows": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_tokens",
+        "current_assistant_only",
+        "history_policy",
+        "retain_system_and_developer_messages",
+        "overlong_current_decision_policy",
+        "note"
+      ],
+      "properties": {
+        "max_tokens": {"type": "integer", "minimum": 16, "multipleOf": 16},
+        "current_assistant_only": {"const": true},
+        "history_policy": {"const": "left_drop_at_message_boundaries"},
+        "retain_system_and_developer_messages": {"const": true},
+        "overlong_current_decision_policy": {"const": "reject"},
+        "note": {"type": "string", "minLength": 1}
+      }
+    },
+    "packing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "implementation",
+        "sequence_contract",
+        "cu_seqlens_dtype",
+        "sequence_start_mask_dtype",
+        "chunk_alignment",
+        "max_tail_alignment_tokens",
+        "cross_sequence_target_policy",
+        "row_batching_owner",
+        "sampler"
+      ],
+      "properties": {
+        "implementation": {"const": "src.training.episode_collator.PackedEpisodeCollator"},
+        "sequence_contract": {"const": "independent_decision_windows"},
+        "cu_seqlens_dtype": {"const": "int32"},
+        "sequence_start_mask_dtype": {"const": "uint8"},
+        "chunk_alignment": {"const": 16},
+        "max_tail_alignment_tokens": {"const": 15},
+        "cross_sequence_target_policy": {"const": "forbidden"},
+        "row_batching_owner": {"const": "token_budget_sampler"},
+        "sampler": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "implementation",
+            "algorithm",
+            "seed",
+            "bucket_size",
+            "shuffle",
+            "distributed_partition",
+            "distributed_tail",
+            "set_epoch_required",
+            "sequence_contract"
+          ],
+          "properties": {
+            "implementation": {"const": "src.training.token_budget_sampler.TokenBudgetPackSampler"},
+            "algorithm": {"const": "seeded_bucket_best_fit_decreasing"},
+            "seed": {"type": "integer", "minimum": 0},
+            "bucket_size": {"type": "integer", "minimum": 1},
+            "shuffle": {"const": true},
+            "distributed_partition": {"const": "disjoint_row_striping"},
+            "distributed_tail": {"const": "drop_global_tail_rows"},
+            "set_epoch_required": {"const": true},
+            "sequence_contract": {"const": "independent_reset_decisions_only"}
+          }
+        }
+      }
+    }
+  }
+}

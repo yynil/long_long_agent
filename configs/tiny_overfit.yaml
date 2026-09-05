@@ -1,0 +1,30 @@
+schema_version: 1
+purpose: packed_agent_sft_pipeline_smoke
+fixture:
+  kind: synthetic_agent_decisions
+  sample_counts: [32, 128]
+  source_revision: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  tokenizer: byte_level_fixture
+packing:
+  max_tokens: 512
+  alignment: 16
+  sampler_seed: 20260904
+  bucket_size: 64
+model:
+  backend: tiny_feature_model
+  vocabulary_size: 257
+  embedding_width: 32
+optimization:
+  seed: 20260904
+  epochs: 20
+  learning_rate: 0.03
+  weight_decay: 0.0
+  beta1: 0.9
+  beta2: 0.99
+  epsilon: 1.0e-8
+  head_chunk_tokens: 32
+  gradient_clip_norm: 5.0
+acceptance:
+  maximum_final_to_initial_loss_ratio: 0.2
+  require_all_samples_each_epoch: true
+artifact_root: /home/yueyulin/data/long_long_agent/artifacts/tiny_overfit

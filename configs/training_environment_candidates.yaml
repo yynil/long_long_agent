@@ -1,0 +1,58 @@
+schema_version: 1
+status: resolution_only
+
+common:
+  python: 3.11.15
+  torch: 2.11.0
+  reason: Same PyTorch API version with CUDA builds matching each node's installed toolkit.
+  official_rwkv_reference:
+    pytorch_minimum: 2.5
+    pytorch_lightning: 1.9.5
+    deepspeed: compatibility_test_required
+
+nodes:
+  local_3090ti:
+    wheel_index: https://download.pytorch.org/whl/cu130
+    expected_torch_build: 2.11.0+cu130
+    cuda_toolkit: /home/yueyulin/software/cuda-13.0
+    compute_capability: "8.6"
+    install_status: model_smoke_passed_with_patch_series
+    installed:
+      numpy: 2.4.6
+      pyyaml: 6.0.3
+      ninja: 1.13.2
+      pytorch_lightning: 1.9.5
+      deepspeed: 0.19.6
+    verified:
+      cuda_visible: true
+      bf16_matmul: true
+      rwkv7_state_passing_forward_backward: true
+      rwkv7_state_passing_packed_varlen_reset: true
+      rwkv7_full_sequence_forward_0_4b: true
+      rwkv7_full_sequence_forward_1_5b: true
+      rwkv7_0_4b_backward: true
+  remote_3x4090:
+    wheel_index: https://download.pytorch.org/whl/cu128
+    expected_torch_build: 2.11.0+cu128
+    cuda_toolkit: /usr/local/cuda-12.8
+    compute_capability: "8.9"
+    install_status: not_installed
+
+required_smoke_tests:
+  - torch_cuda_device_visibility
+  - cpp_cuda_extension_build
+  - rwkv7_full_sequence_forward
+  - rwkv7_state_passing_forward_backward
+  - pytorch_lightning_1_9_5_import
+  - deepspeed_import_and_single_step
+
+required_patch_series:
+  - patches/rwkv-lm-sm80-float2-atomic-fallback.patch
+  - patches/rwkv-lm-configurable-lora-ranks.patch
+  - patches/rwkv-lm-nonjit-op-binding.patch
+  - patches/rwkv-lm-packed-varlen-reset-mask.patch
+  - patches/rwkv-cuda-state-passing-packed-varlen.patch
+
+policy:
+  do_not_copy_compiled_extensions_between_nodes: true
+  do_not_mark_environment_locked_before_all_smoke_tests: true

@@ -1,0 +1,826 @@
+diff --git a/RWKV-v7/train_temp/cuda/rwkv7_clampw.cpp b/RWKV-v7/train_temp/cuda/rwkv7_clampw.cpp
+index 29f61d9..551ca96 100644
+--- a/RWKV-v7/train_temp/cuda/rwkv7_clampw.cpp
++++ b/RWKV-v7/train_temp/cuda/rwkv7_clampw.cpp
+@@ -7,19 +7,25 @@
+     using bf = __nv_bfloat16;
+ #endif
+ 
+-void cuda_forward(int B, int T, int H, bf*r, bf*w, bf*k, bf*v, bf*a, bf*b, bf*y, float*s, float*sa);
++void cuda_forward(int B, int T, int H, bf*r, bf*w, bf*k, bf*v, bf*a, bf*b, uint8_t*sequence_start_mask, bf*y, float*s, float*sa);
+ 
+-void forward(torch::Tensor &r, torch::Tensor &w, torch::Tensor &k, torch::Tensor &v, torch::Tensor &a, torch::Tensor &b, torch::Tensor &y, torch::Tensor &s, torch::Tensor &sa) {
++void forward(torch::Tensor &r, torch::Tensor &w, torch::Tensor &k, torch::Tensor &v, torch::Tensor &a, torch::Tensor &b, torch::Tensor &sequence_start_mask, torch::Tensor &y, torch::Tensor &s, torch::Tensor &sa) {
+     int B = r.sizes()[0], T = r.sizes()[1], H = r.sizes()[2];
+-    cuda_forward(B, T, H, (bf*)r.data_ptr(), (bf*)w.data_ptr(), (bf*)k.data_ptr(), (bf*)v.data_ptr(), (bf*)a.data_ptr(), (bf*)b.data_ptr(), (bf*)y.data_ptr(), (float*)s.data_ptr(), (float*)sa.data_ptr());
++    TORCH_CHECK(sequence_start_mask.is_cuda() && sequence_start_mask.is_contiguous(), "sequence_start_mask must be contiguous CUDA");
++    TORCH_CHECK(sequence_start_mask.scalar_type() == torch::kUInt8, "sequence_start_mask must be uint8");
++    TORCH_CHECK(sequence_start_mask.dim() == 2 && sequence_start_mask.size(0) == B && sequence_start_mask.size(1) == T, "sequence_start_mask must have shape [B, T]");
++    cuda_forward(B, T, H, (bf*)r.data_ptr(), (bf*)w.data_ptr(), (bf*)k.data_ptr(), (bf*)v.data_ptr(), (bf*)a.data_ptr(), (bf*)b.data_ptr(), (uint8_t*)sequence_start_mask.data_ptr(), (bf*)y.data_ptr(), (float*)s.data_ptr(), (float*)sa.data_ptr());
+ }
+ 
+-void cuda_backward(int B, int T, int H, bf*r, bf*w, bf*k, bf*v, bf*a, bf*b, bf*dy, float*s, float*sa, bf*dr, bf*dw, bf*dk, bf*dv, bf*da, bf*db);
++void cuda_backward(int B, int T, int H, bf*r, bf*w, bf*k, bf*v, bf*a, bf*b, uint8_t*sequence_start_mask, bf*dy, float*s, float*sa, bf*dr, bf*dw, bf*dk, bf*dv, bf*da, bf*db);
+ 
+-void backward(torch::Tensor &r, torch::Tensor &w, torch::Tensor &k, torch::Tensor &v, torch::Tensor &a, torch::Tensor &b, torch::Tensor &dy,
++void backward(torch::Tensor &r, torch::Tensor &w, torch::Tensor &k, torch::Tensor &v, torch::Tensor &a, torch::Tensor &b, torch::Tensor &sequence_start_mask, torch::Tensor &dy,
+         torch::Tensor &s, torch::Tensor &sa, torch::Tensor &dr, torch::Tensor &dw, torch::Tensor &dk, torch::Tensor &dv, torch::Tensor &da, torch::Tensor &db) {
+     int B = r.sizes()[0], T = r.sizes()[1], H = r.sizes()[2];
+-    cuda_backward(B, T, H, (bf*)r.data_ptr(), (bf*)w.data_ptr(), (bf*)k.data_ptr(), (bf*)v.data_ptr(), (bf*)a.data_ptr(), (bf*)b.data_ptr(), (bf*)dy.data_ptr(), 
++    TORCH_CHECK(sequence_start_mask.is_cuda() && sequence_start_mask.is_contiguous(), "sequence_start_mask must be contiguous CUDA");
++    TORCH_CHECK(sequence_start_mask.scalar_type() == torch::kUInt8, "sequence_start_mask must be uint8");
++    TORCH_CHECK(sequence_start_mask.dim() == 2 && sequence_start_mask.size(0) == B && sequence_start_mask.size(1) == T, "sequence_start_mask must have shape [B, T]");
++    cuda_backward(B, T, H, (bf*)r.data_ptr(), (bf*)w.data_ptr(), (bf*)k.data_ptr(), (bf*)v.data_ptr(), (bf*)a.data_ptr(), (bf*)b.data_ptr(), (uint8_t*)sequence_start_mask.data_ptr(), (bf*)dy.data_ptr(),
+             (float*)s.data_ptr(), (float*)sa.data_ptr(), (bf*)dr.data_ptr(), (bf*)dw.data_ptr(), (bf*)dk.data_ptr(), (bf*)dv.data_ptr(), (bf*)da.data_ptr(), (bf*)db.data_ptr());
+ }
+ 
+diff --git a/RWKV-v7/train_temp/cuda/rwkv7_clampw.cu b/RWKV-v7/train_temp/cuda/rwkv7_clampw.cu
+index 827faeb..970f668 100644
+--- a/RWKV-v7/train_temp/cuda/rwkv7_clampw.cu
++++ b/RWKV-v7/train_temp/cuda/rwkv7_clampw.cu
+@@ -1,4 +1,5 @@
+ #include <assert.h>
++#include <stdint.h>
+ 
+ #ifdef _FP32_
+     using bf = float;
+@@ -18,7 +19,7 @@ constexpr float W_SCALE = -0.6065306597f; // -exp(-0.5)
+ //###################################################################################################### 
+ 
+ template<int N> __launch_bounds__(N,2)
+-__global__ void forward_kernel(int T,int H,F_ r_,F_ w_,F_ k_,F_ v_,F_ a_,F_ b_,bf* __restrict__ y_,float* s__,float* __restrict__ sa_)
++__global__ void forward_kernel(int T,int H,F_ r_,F_ w_,F_ k_,F_ v_,F_ a_,F_ b_,const uint8_t* __restrict__ sequence_start_mask_,bf* __restrict__ y_,float* s__,float* __restrict__ sa_)
+ {
+     const int bb=blockIdx.y, hh=blockIdx.x, i=threadIdx.x;
+     float* __restrict__ s_ = s__ + i64(bb*H+hh) * i64((T/_CHUNK_LEN_)*N*N);
+@@ -37,6 +38,13 @@ __global__ void forward_kernel(int T,int H,F_ r_,F_ w_,F_ k_,F_ v_,F_ a_,F_ b_,b
+     {
+         const int idx = ((bb*T+t)*H+hh)*N+i;
+ 
++        if (sequence_start_mask_[bb*T+t] != 0) {
++#pragma unroll
++            for (int j=0; j<N; ++j) {
++                state[j] = 0.0f;
++            }
++        }
++
+         __syncthreads();
+         r[i] = to_float(r_[idx]);
+         w[i] = __expf(W_SCALE / (1.0f + __expf(-to_float(w_[idx]))));
+@@ -73,26 +81,28 @@ __global__ void forward_kernel(int T,int H,F_ r_,F_ w_,F_ k_,F_ v_,F_ a_,F_ b_,b
+         }
+     }
+ }
+-void cuda_forward(int B,int T,int H,bf*r,bf*w,bf*k,bf*v,bf*a,bf*b,bf*y,float*s,float*sa)
++void cuda_forward(int B,int T,int H,bf*r,bf*w,bf*k,bf*v,bf*a,bf*b,uint8_t*sequence_start_mask,bf*y,float*s,float*sa)
+ {
+-    forward_kernel<_N_><<<dim3(H,B),dim3(_N_)>>>(T,H,r,w,k,v,a,b,y,s,sa);
++    forward_kernel<_N_><<<dim3(H,B),dim3(_N_)>>>(T,H,r,w,k,v,a,b,sequence_start_mask,y,s,sa);
+ }
+ 
+ //###################################################################################################### 
+ 
+ template<int N>
+-__global__ void backward_kernel(int T, int H, F_ r_, F_ w_, F_ k_, F_ v_, F_ a_, F_ b_, F_ dy_, float * __restrict__ s__, float * __restrict__ sa_, bf* dr_, bf* dw_, bf* dk_, bf* dv_, bf* da_, bf* db_)
++__global__ void backward_kernel(int T, int H, F_ r_, F_ w_, F_ k_, F_ v_, F_ a_, F_ b_, const uint8_t* __restrict__ sequence_start_mask_, F_ dy_, float * __restrict__ s__, float * __restrict__ sa_, bf* dr_, bf* dw_, bf* dk_, bf* dv_, bf* da_, bf* db_)
+ {
+     int bb = blockIdx.y, hh = blockIdx.x, i = threadIdx.x;
+     float* __restrict__ s_ = s__ + i64(bb*H+hh) * i64((T/_CHUNK_LEN_)*N*N);
+ 
+     float stateT[N] = {0}, dstate[N] = {0}, dstateT[N] = {0};
+     __shared__ float r[N], w[N], k[N], v[N], a[N], b[N], dy[N], sa[N], dSb_shared[N];
++    __shared__ float replay_state_matrix[N][N];
+     float ri, wi, ki, ai, bi, dyi;
+ 
+     for (int t = T-1; t >= 0; t--)
+     {
+         int idx = bb*T*H*N + t*H*N + hh * N + i;
++        const bool sequence_start = sequence_start_mask_[bb*T+t] != 0;
+ 
+         __syncthreads();
+         r[i] = ri = to_float(r_[idx]);
+@@ -130,7 +140,7 @@ __global__ void backward_kernel(int T, int H, F_ r_, F_ w_, F_ k_, F_ v_, F_ a_,
+         float iwi = 1.0f / wi;
+ #pragma unroll
+         for (int j = 0; j < N; j++) {
+-            stateT[j] = (stateT[j] - ki * v[j] - bi * sa[j]) * iwi;
++            stateT[j] = sequence_start ? 0.0f : (stateT[j] - ki * v[j] - bi * sa[j]) * iwi;
+             dstate[j] += dyi * r[j];
+             dstateT[j] += ri * dy[j];
+         }
+@@ -166,11 +176,70 @@ __global__ void backward_kernel(int T, int H, F_ r_, F_ w_, F_ k_, F_ v_, F_ a_,
+             dstate[j] = dstate[j] * w[j] + dSb * a[j];
+             dstateT[j] = dstateT[j] * wi + ai * dSb_shared[j];
+         }
++
++        if (sequence_start) {
++#pragma unroll
++            for (int j = 0; j < N; j++) {
++                dstate[j] = 0.0f;
++                dstateT[j] = 0.0f;
++            }
++
++            const int chunk_start = (t / _CHUNK_LEN_) * _CHUNK_LEN_;
++            if (chunk_start == 0) {
++#pragma unroll
++                for (int j = 0; j < N; j++) {
++                    stateT[j] = 0.0f;
++                }
++            } else {
++                const int base = (chunk_start/_CHUNK_LEN_-1)*N*N + i;
++#pragma unroll
++                for (int j = 0; j < N; j++) {
++                    stateT[j] = s_[base+j*N];
++                }
++            }
++
++            for (int u = chunk_start; u < t; u++) {
++                if (sequence_start_mask_[bb*T+u] != 0) {
++#pragma unroll
++                    for (int j = 0; j < N; j++) {
++                        stateT[j] = 0.0f;
++                    }
++                }
++                const int replay_idx = bb*T*H*N + u*H*N + hh*N + i;
++                __syncthreads();
++                w[i] = __expf(W_SCALE / (1.0f + __expf(-to_float(w_[replay_idx]))));
++                k[i] = to_float(k_[replay_idx]);
++                v[i] = to_float(v_[replay_idx]);
++                a[i] = to_float(a_[replay_idx]);
++                b[i] = to_float(b_[replay_idx]);
++                __syncthreads();
++                float replay_sa = 0.0f;
++#pragma unroll
++                for (int j = 0; j < N; j++) {
++                    replay_sa += stateT[j] * a[j];
++                }
++                const float replay_vi = v[i];
++#pragma unroll
++                for (int j = 0; j < N; j++) {
++                    stateT[j] = stateT[j] * w[j] + replay_sa * b[j] + k[j] * replay_vi;
++                }
++            }
++            __syncthreads();
++#pragma unroll
++            for (int j = 0; j < N; j++) {
++                replay_state_matrix[i][j] = stateT[j];
++            }
++            __syncthreads();
++#pragma unroll
++            for (int j = 0; j < N; j++) {
++                stateT[j] = replay_state_matrix[j][i];
++            }
++        }
+     }
+ }
+ 
+-void cuda_backward(int B, int T, int H, bf*r, bf*w, bf*k, bf*v, bf*a, bf*b, bf*dy, float*s, float*sa, bf*dr, bf*dw, bf*dk, bf*dv, bf*da, bf*db)
++void cuda_backward(int B, int T, int H, bf*r, bf*w,bf*k,bf*v,bf*a,bf*b,uint8_t*sequence_start_mask,bf*dy,float*s,float*sa,bf*dr,bf*dw,bf*dk,bf*dv,bf*da,bf*db)
+ {
+     assert(T%_CHUNK_LEN_ == 0);
+-    backward_kernel<_N_><<<dim3(H,B), dim3(_N_)>>>(T,H,r,w,k,v,a,b,dy,s,sa,dr,dw,dk,dv,da,db);
++    backward_kernel<_N_><<<dim3(H,B), dim3(_N_)>>>(T,H,r,w,k,v,a,b,sequence_start_mask,dy,s,sa,dr,dw,dk,dv,da,db);
+ }
+diff --git a/RWKV-v7/train_temp/cuda/rwkv7_cmix_bf16_v5.cpp b/RWKV-v7/train_temp/cuda/rwkv7_cmix_bf16_v5.cpp
+index ecf66ca..77a2e72 100644
+--- a/RWKV-v7/train_temp/cuda/rwkv7_cmix_bf16_v5.cpp
++++ b/RWKV-v7/train_temp/cuda/rwkv7_cmix_bf16_v5.cpp
+@@ -6,17 +6,19 @@ std::vector<torch::Tensor> cmix_layer_forward_v5_cuda(
+     torch::Tensor x,
+     torch::Tensor x_k,
+     torch::Tensor key_weight,
+-    torch::Tensor value_weight);
++    torch::Tensor value_weight,
++    torch::Tensor sequence_start_mask);
+ std::vector<torch::Tensor> cmix_layer_backward_v5_cuda(
+     torch::Tensor grad_out,
+     torch::Tensor x,
+     torch::Tensor x_k,
+     torch::Tensor key_weight,
+     torch::Tensor value_weight,
++    torch::Tensor sequence_start_mask,
+     torch::Tensor mixed,
+     torch::Tensor act);
+-torch::Tensor cmix_mix_forward_v5_cuda(torch::Tensor x, torch::Tensor x_k);
+-std::vector<torch::Tensor> cmix_mix_backward_v5_cuda(torch::Tensor grad_out, torch::Tensor x, torch::Tensor x_k);
++torch::Tensor cmix_mix_forward_v5_cuda(torch::Tensor x, torch::Tensor x_k, torch::Tensor sequence_start_mask);
++std::vector<torch::Tensor> cmix_mix_backward_v5_cuda(torch::Tensor grad_out, torch::Tensor x, torch::Tensor x_k, torch::Tensor sequence_start_mask);
+ 
+ namespace {
+ 
+@@ -26,17 +28,27 @@ void check_bf16_cuda(const torch::Tensor& x, const char* name) {
+     TORCH_CHECK(x.scalar_type() == torch::kBFloat16, name, " must be bf16");
+ }
+ 
++void check_sequence_start_mask(const torch::Tensor& mask, int64_t b, int64_t t) {
++    TORCH_CHECK(mask.is_cuda(), "sequence_start_mask must be a CUDA tensor");
++    TORCH_CHECK(mask.is_contiguous(), "sequence_start_mask must be contiguous");
++    TORCH_CHECK(mask.scalar_type() == torch::kUInt8, "sequence_start_mask must be uint8");
++    TORCH_CHECK(mask.dim() == 2 && mask.size(0) == b && mask.size(1) == t,
++                "sequence_start_mask must have shape [B, T]");
++}
++
+ } // namespace
+ 
+ std::vector<torch::Tensor> cmix_layer_forward_v5(
+     torch::Tensor x,
+     torch::Tensor x_k,
+     torch::Tensor key_weight,
+-    torch::Tensor value_weight) {
++    torch::Tensor value_weight,
++    torch::Tensor sequence_start_mask) {
+     check_bf16_cuda(x, "x");
+     check_bf16_cuda(x_k, "x_k");
+     check_bf16_cuda(key_weight, "key_weight");
+     check_bf16_cuda(value_weight, "value_weight");
++    check_sequence_start_mask(sequence_start_mask, x.size(0), x.size(1));
+     TORCH_CHECK(x.dim() == 3, "x must have shape [B, T, C]");
+     TORCH_CHECK(x_k.dim() == 1, "x_k must have shape [C]");
+     TORCH_CHECK(key_weight.dim() == 2, "key_weight must have shape [4C, C]");
+@@ -45,7 +57,7 @@ std::vector<torch::Tensor> cmix_layer_forward_v5(
+     TORCH_CHECK(x.size(2) == x_k.size(0), "channel size mismatch for x_k");
+     TORCH_CHECK(key_weight.size(1) == x.size(2), "key_weight input dim mismatch");
+     TORCH_CHECK(value_weight.size(1) == key_weight.size(0), "value_weight input dim mismatch");
+-    return cmix_layer_forward_v5_cuda(x, x_k, key_weight, value_weight);
++    return cmix_layer_forward_v5_cuda(x, x_k, key_weight, value_weight, sequence_start_mask);
+ }
+ 
+ std::vector<torch::Tensor> cmix_layer_backward_v5(
+@@ -54,6 +66,7 @@ std::vector<torch::Tensor> cmix_layer_backward_v5(
+     torch::Tensor x_k,
+     torch::Tensor key_weight,
+     torch::Tensor value_weight,
++    torch::Tensor sequence_start_mask,
+     torch::Tensor mixed,
+     torch::Tensor act) {
+     check_bf16_cuda(grad_out, "grad_out");
+@@ -63,8 +76,9 @@ std::vector<torch::Tensor> cmix_layer_backward_v5(
+     check_bf16_cuda(value_weight, "value_weight");
+     check_bf16_cuda(mixed, "mixed");
+     check_bf16_cuda(act, "act");
++    check_sequence_start_mask(sequence_start_mask, x.size(0), x.size(1));
+     TORCH_CHECK((x.size(2) % 2) == 0, "cmix v5 currently requires even C");
+-    return cmix_layer_backward_v5_cuda(grad_out, x, x_k, key_weight, value_weight, mixed, act);
++    return cmix_layer_backward_v5_cuda(grad_out, x, x_k, key_weight, value_weight, sequence_start_mask, mixed, act);
+ }
+ 
+ TORCH_LIBRARY(rwkv7_cmix_bf16_v5, m) {
+diff --git a/RWKV-v7/train_temp/cuda/rwkv7_cmix_bf16_v5.cu b/RWKV-v7/train_temp/cuda/rwkv7_cmix_bf16_v5.cu
+index 805148b..6d68f88 100644
+--- a/RWKV-v7/train_temp/cuda/rwkv7_cmix_bf16_v5.cu
++++ b/RWKV-v7/train_temp/cuda/rwkv7_cmix_bf16_v5.cu
+@@ -33,6 +33,7 @@ inline int64_t ceil_div(int64_t n, int64_t d) {
+ __global__ void cmix_mix_forward_vec2_kernel(
+     const at::BFloat16* __restrict__ x,
+     const at::BFloat16* __restrict__ x_k,
++    const uint8_t* __restrict__ sequence_start_mask,
+     at::BFloat16* __restrict__ out,
+     int64_t bt_size,
+     int64_t t_size,
+@@ -51,7 +52,7 @@ __global__ void cmix_mix_forward_vec2_kernel(
+ 
+     __nv_bfloat162 x_now = load_bf16x2(x + idx);
+     __nv_bfloat162 x_prev = __floats2bfloat162_rn(0.0f, 0.0f);
+-    if (t > 0) {
++    if (t > 0 && sequence_start_mask[bt] == 0) {
+         x_prev = load_bf16x2(x + idx - c_size);
+     }
+     __nv_bfloat162 mix = load_bf16x2(x_k + c);
+@@ -65,6 +66,7 @@ __global__ void cmix_mix_backward_fused_vec2_kernel(
+     const at::BFloat16* __restrict__ grad_out,
+     const at::BFloat16* __restrict__ x,
+     const at::BFloat16* __restrict__ x_k,
++    const uint8_t* __restrict__ sequence_start_mask,
+     at::BFloat16* __restrict__ grad_x,
+     float* __restrict__ grad_x_k,
+     int64_t bt_size,
+@@ -99,7 +101,7 @@ __global__ void cmix_mix_backward_fused_vec2_kernel(
+ 
+         __nv_bfloat162 next_grad = __floats2bfloat162_rn(0.0f, 0.0f);
+         bool have_next_grad = false;
+-        if (t + 1 < t_size) {
++        if (t + 1 < t_size && sequence_start_mask[bt + 1] == 0) {
+             next_grad = load_bf16x2(grad_out + idx + c_size);
+             have_next_grad = true;
+         }
+@@ -112,7 +114,7 @@ __global__ void cmix_mix_backward_fused_vec2_kernel(
+ 
+         float2 x_now = __bfloat1622float2(load_bf16x2(x + idx));
+         float2 x_prev = make_float2(0.0f, 0.0f);
+-        if (t > 0) {
++        if (t > 0 && sequence_start_mask[bt] == 0) {
+             x_prev = have_prev_x ? prev_x : __bfloat1622float2(load_bf16x2(x + idx - c_size));
+         }
+         float2 g = __bfloat1622float2(grad);
+@@ -133,6 +135,7 @@ void launch_cmix_mix_backward_fused_vec2_kernel(
+     const at::BFloat16* grad_out,
+     const at::BFloat16* x,
+     const at::BFloat16* x_k,
++    const uint8_t* sequence_start_mask,
+     at::BFloat16* grad_x,
+     float* grad_x_k,
+     int64_t bt_size,
+@@ -147,6 +150,7 @@ void launch_cmix_mix_backward_fused_vec2_kernel(
+         grad_out,
+         x,
+         x_k,
++        sequence_start_mask,
+         grad_x,
+         grad_x_k,
+         bt_size,
+@@ -196,7 +200,7 @@ __global__ void relu_sq_backward_from_output_inplace_vec2_kernel(
+     store_bf16x2(grad_out + idx, __floats2bfloat162_rn(g0, g1));
+ }
+ 
+-torch::Tensor cmix_mix_forward_cuda(torch::Tensor x, torch::Tensor x_k) {
++torch::Tensor cmix_mix_forward_cuda(torch::Tensor x, torch::Tensor x_k, torch::Tensor sequence_start_mask) {
+     auto out = torch::empty_like(x);
+     const int64_t bt_size = x.size(0) * x.size(1);
+     const int64_t c_size = x.size(2);
+@@ -206,6 +210,7 @@ torch::Tensor cmix_mix_forward_cuda(torch::Tensor x, torch::Tensor x_k) {
+     cmix_mix_forward_vec2_kernel<<<blocks, CMIX_THREADS, 0, stream>>>(
+         x.data_ptr<at::BFloat16>(),
+         x_k.data_ptr<at::BFloat16>(),
++        sequence_start_mask.data_ptr<uint8_t>(),
+         out.data_ptr<at::BFloat16>(),
+         bt_size,
+         x.size(1),
+@@ -214,7 +219,7 @@ torch::Tensor cmix_mix_forward_cuda(torch::Tensor x, torch::Tensor x_k) {
+     return out;
+ }
+ 
+-std::vector<torch::Tensor> cmix_mix_backward_cuda(torch::Tensor grad_out, torch::Tensor x, torch::Tensor x_k) {
++std::vector<torch::Tensor> cmix_mix_backward_cuda(torch::Tensor grad_out, torch::Tensor x, torch::Tensor x_k, torch::Tensor sequence_start_mask) {
+     auto grad_x = torch::empty_like(x);
+     auto grad_x_k_fp32 = torch::zeros({x.size(2)}, x.options().dtype(torch::kFloat32));
+     auto grad_x_k = torch::empty({x.size(2)}, x.options());
+@@ -229,19 +234,19 @@ std::vector<torch::Tensor> cmix_mix_backward_cuda(torch::Tensor grad_out, torch:
+     }
+     if (bt_tile == 16) {
+         launch_cmix_mix_backward_fused_vec2_kernel<16>(
+-            grad_out.data_ptr<at::BFloat16>(), x.data_ptr<at::BFloat16>(), x_k.data_ptr<at::BFloat16>(),
++            grad_out.data_ptr<at::BFloat16>(), x.data_ptr<at::BFloat16>(), x_k.data_ptr<at::BFloat16>(), sequence_start_mask.data_ptr<uint8_t>(),
+             grad_x.data_ptr<at::BFloat16>(), grad_x_k_fp32.data_ptr<float>(), bt_size, x.size(1), c_size, stream);
+     } else if (bt_tile == 64) {
+         launch_cmix_mix_backward_fused_vec2_kernel<64>(
+-            grad_out.data_ptr<at::BFloat16>(), x.data_ptr<at::BFloat16>(), x_k.data_ptr<at::BFloat16>(),
++            grad_out.data_ptr<at::BFloat16>(), x.data_ptr<at::BFloat16>(), x_k.data_ptr<at::BFloat16>(), sequence_start_mask.data_ptr<uint8_t>(),
+             grad_x.data_ptr<at::BFloat16>(), grad_x_k_fp32.data_ptr<float>(), bt_size, x.size(1), c_size, stream);
+     } else if (bt_tile == 128) {
+         launch_cmix_mix_backward_fused_vec2_kernel<128>(
+-            grad_out.data_ptr<at::BFloat16>(), x.data_ptr<at::BFloat16>(), x_k.data_ptr<at::BFloat16>(),
++            grad_out.data_ptr<at::BFloat16>(), x.data_ptr<at::BFloat16>(), x_k.data_ptr<at::BFloat16>(), sequence_start_mask.data_ptr<uint8_t>(),
+             grad_x.data_ptr<at::BFloat16>(), grad_x_k_fp32.data_ptr<float>(), bt_size, x.size(1), c_size, stream);
+     } else {
+         launch_cmix_mix_backward_fused_vec2_kernel<32>(
+-            grad_out.data_ptr<at::BFloat16>(), x.data_ptr<at::BFloat16>(), x_k.data_ptr<at::BFloat16>(),
++            grad_out.data_ptr<at::BFloat16>(), x.data_ptr<at::BFloat16>(), x_k.data_ptr<at::BFloat16>(), sequence_start_mask.data_ptr<uint8_t>(),
+             grad_x.data_ptr<at::BFloat16>(), grad_x_k_fp32.data_ptr<float>(), bt_size, x.size(1), c_size, stream);
+     }
+     C10_CUDA_KERNEL_LAUNCH_CHECK();
+@@ -282,8 +287,9 @@ std::vector<torch::Tensor> cmix_layer_forward_v5_cuda(
+     torch::Tensor x,
+     torch::Tensor x_k,
+     torch::Tensor key_weight,
+-    torch::Tensor value_weight) {
+-    auto mixed = cmix_mix_forward_cuda(x, x_k);
++    torch::Tensor value_weight,
++    torch::Tensor sequence_start_mask) {
++    auto mixed = cmix_mix_forward_cuda(x, x_k, sequence_start_mask);
+     auto mixed_2d = mixed.view({-1, mixed.size(2)});
+     auto act = at::matmul(mixed_2d, key_weight.transpose(0, 1)).contiguous();
+     relu_sq_inplace_cuda(act);
+@@ -298,6 +304,7 @@ std::vector<torch::Tensor> cmix_layer_backward_v5_cuda(
+     torch::Tensor x_k,
+     torch::Tensor key_weight,
+     torch::Tensor value_weight,
++    torch::Tensor sequence_start_mask,
+     torch::Tensor mixed,
+     torch::Tensor act) {
+     auto grad_out_2d = grad_out.view({-1, grad_out.size(2)}).contiguous();
+@@ -309,7 +316,7 @@ std::vector<torch::Tensor> cmix_layer_backward_v5_cuda(
+     auto grad_key_weight = at::matmul(grad_hidden.transpose(0, 1), mixed_2d);
+     auto grad_mixed_2d = at::matmul(grad_hidden, key_weight).contiguous();
+     auto grad_mixed = grad_mixed_2d.view_as(x);
+-    auto mix_grads = cmix_mix_backward_cuda(grad_mixed, x, x_k);
++    auto mix_grads = cmix_mix_backward_cuda(grad_mixed, x, x_k, sequence_start_mask);
+ 
+     return {
+         mix_grads[0],
+diff --git a/RWKV-v7/train_temp/cuda/rwkv7_tmix_mix6_bf16_v5.cpp b/RWKV-v7/train_temp/cuda/rwkv7_tmix_mix6_bf16_v5.cpp
+index 857deb5..5e32a7d 100644
+--- a/RWKV-v7/train_temp/cuda/rwkv7_tmix_mix6_bf16_v5.cpp
++++ b/RWKV-v7/train_temp/cuda/rwkv7_tmix_mix6_bf16_v5.cpp
+@@ -9,7 +9,8 @@ std::vector<torch::Tensor> tmix_mix6_forward_v5_cuda(
+     torch::Tensor x_k,
+     torch::Tensor x_v,
+     torch::Tensor x_a,
+-    torch::Tensor x_g);
++    torch::Tensor x_g,
++    torch::Tensor sequence_start_mask);
+ 
+ std::vector<torch::Tensor> tmix_mix6_backward_v5_cuda(
+     torch::Tensor grad_r,
+@@ -24,7 +25,8 @@ std::vector<torch::Tensor> tmix_mix6_backward_v5_cuda(
+     torch::Tensor x_k,
+     torch::Tensor x_v,
+     torch::Tensor x_a,
+-    torch::Tensor x_g);
++    torch::Tensor x_g,
++    torch::Tensor sequence_start_mask);
+ 
+ namespace {
+ 
+@@ -39,6 +41,14 @@ void check_vec(const torch::Tensor& x, int64_t c, const char* name) {
+     TORCH_CHECK(x.size(0) == c, name, " shape mismatch");
+ }
+ 
++void check_sequence_start_mask(const torch::Tensor& mask, int64_t b, int64_t t) {
++    TORCH_CHECK(mask.is_cuda(), "sequence_start_mask must be a CUDA tensor");
++    TORCH_CHECK(mask.is_contiguous(), "sequence_start_mask must be contiguous");
++    TORCH_CHECK(mask.scalar_type() == torch::kUInt8, "sequence_start_mask must be uint8");
++    TORCH_CHECK(mask.dim() == 2 && mask.size(0) == b && mask.size(1) == t,
++                "sequence_start_mask must have shape [B, T]");
++}
++
+ } // namespace
+ 
+ std::vector<torch::Tensor> forward(
+@@ -48,7 +58,8 @@ std::vector<torch::Tensor> forward(
+     torch::Tensor x_k,
+     torch::Tensor x_v,
+     torch::Tensor x_a,
+-    torch::Tensor x_g) {
++    torch::Tensor x_g,
++    torch::Tensor sequence_start_mask) {
+     check_bf16_cuda(x, "x");
+     check_bf16_cuda(x_r, "x_r");
+     check_bf16_cuda(x_w, "x_w");
+@@ -57,6 +68,7 @@ std::vector<torch::Tensor> forward(
+     check_bf16_cuda(x_a, "x_a");
+     check_bf16_cuda(x_g, "x_g");
+     TORCH_CHECK(x.dim() == 3, "x must have shape [B, T, C]");
++    check_sequence_start_mask(sequence_start_mask, x.size(0), x.size(1));
+     int64_t c = x.size(2);
+     TORCH_CHECK((c % 2) == 0, "tmix_mix6_v5 currently requires even C");
+     check_vec(x_r, c, "x_r");
+@@ -65,7 +77,7 @@ std::vector<torch::Tensor> forward(
+     check_vec(x_v, c, "x_v");
+     check_vec(x_a, c, "x_a");
+     check_vec(x_g, c, "x_g");
+-    return tmix_mix6_forward_v5_cuda(x, x_r, x_w, x_k, x_v, x_a, x_g);
++    return tmix_mix6_forward_v5_cuda(x, x_r, x_w, x_k, x_v, x_a, x_g, sequence_start_mask);
+ }
+ 
+ std::vector<torch::Tensor> backward(
+@@ -81,7 +93,8 @@ std::vector<torch::Tensor> backward(
+     torch::Tensor x_k,
+     torch::Tensor x_v,
+     torch::Tensor x_a,
+-    torch::Tensor x_g) {
++    torch::Tensor x_g,
++    torch::Tensor sequence_start_mask) {
+     check_bf16_cuda(grad_r, "grad_r");
+     check_bf16_cuda(grad_w, "grad_w");
+     check_bf16_cuda(grad_k, "grad_k");
+@@ -95,6 +108,7 @@ std::vector<torch::Tensor> backward(
+     check_bf16_cuda(x_v, "x_v");
+     check_bf16_cuda(x_a, "x_a");
+     check_bf16_cuda(x_g, "x_g");
++    check_sequence_start_mask(sequence_start_mask, x.size(0), x.size(1));
+     TORCH_CHECK(grad_r.sizes() == x.sizes(), "grad_r shape mismatch");
+     TORCH_CHECK(grad_w.sizes() == x.sizes(), "grad_w shape mismatch");
+     TORCH_CHECK(grad_k.sizes() == x.sizes(), "grad_k shape mismatch");
+@@ -102,12 +116,12 @@ std::vector<torch::Tensor> backward(
+     TORCH_CHECK(grad_a.sizes() == x.sizes(), "grad_a shape mismatch");
+     TORCH_CHECK(grad_g.sizes() == x.sizes(), "grad_g shape mismatch");
+     TORCH_CHECK((x.size(2) % 2) == 0, "tmix_mix6_v5 currently requires even C");
+-    return tmix_mix6_backward_v5_cuda(grad_r, grad_w, grad_k, grad_v, grad_a, grad_g, x, x_r, x_w, x_k, x_v, x_a, x_g);
++    return tmix_mix6_backward_v5_cuda(grad_r, grad_w, grad_k, grad_v, grad_a, grad_g, x, x_r, x_w, x_k, x_v, x_a, x_g, sequence_start_mask);
+ }
+ 
+ TORCH_LIBRARY(rwkv7_tmix_mix6_bf16_v5, m) {
+-    m.def("forward(Tensor x, Tensor x_r, Tensor x_w, Tensor x_k, Tensor x_v, Tensor x_a, Tensor x_g) -> Tensor[]");
+-    m.def("backward(Tensor grad_r, Tensor grad_w, Tensor grad_k, Tensor grad_v, Tensor grad_a, Tensor grad_g, Tensor x, Tensor x_r, Tensor x_w, Tensor x_k, Tensor x_v, Tensor x_a, Tensor x_g) -> Tensor[]");
++    m.def("forward(Tensor x, Tensor x_r, Tensor x_w, Tensor x_k, Tensor x_v, Tensor x_a, Tensor x_g, Tensor sequence_start_mask) -> Tensor[]");
++    m.def("backward(Tensor grad_r, Tensor grad_w, Tensor grad_k, Tensor grad_v, Tensor grad_a, Tensor grad_g, Tensor x, Tensor x_r, Tensor x_w, Tensor x_k, Tensor x_v, Tensor x_a, Tensor x_g, Tensor sequence_start_mask) -> Tensor[]");
+ }
+ 
+ TORCH_LIBRARY_IMPL(rwkv7_tmix_mix6_bf16_v5, CUDA, m) {
+diff --git a/RWKV-v7/train_temp/cuda/rwkv7_tmix_mix6_bf16_v5.cu b/RWKV-v7/train_temp/cuda/rwkv7_tmix_mix6_bf16_v5.cu
+index 20f9bc0..6f8e407 100644
+--- a/RWKV-v7/train_temp/cuda/rwkv7_tmix_mix6_bf16_v5.cu
++++ b/RWKV-v7/train_temp/cuda/rwkv7_tmix_mix6_bf16_v5.cu
+@@ -37,6 +37,7 @@ __global__ void tmix_mix6_forward_kernel(
+     const at::BFloat16* __restrict__ x_v,
+     const at::BFloat16* __restrict__ x_a,
+     const at::BFloat16* __restrict__ x_g,
++    const uint8_t* __restrict__ sequence_start_mask,
+     at::BFloat16* __restrict__ out_r,
+     at::BFloat16* __restrict__ out_w,
+     at::BFloat16* __restrict__ out_k,
+@@ -60,7 +61,7 @@ __global__ void tmix_mix6_forward_kernel(
+ 
+     __nv_bfloat162 x_now = load_bf16x2(x + idx);
+     __nv_bfloat162 x_prev = __floats2bfloat162_rn(0.0f, 0.0f);
+-    if (t > 0) {
++    if (t > 0 && sequence_start_mask[bt] == 0) {
+         x_prev = load_bf16x2(x + idx - c_size);
+     }
+     __nv_bfloat162 xx = __hsub2(x_prev, x_now);
+@@ -90,6 +91,7 @@ __global__ void tmix_mix6_backward_fused_kernel_v5(
+     const at::BFloat16* __restrict__ x_v,
+     const at::BFloat16* __restrict__ x_a,
+     const at::BFloat16* __restrict__ x_g,
++    const uint8_t* __restrict__ sequence_start_mask,
+     at::BFloat16* __restrict__ grad_x,
+     float* __restrict__ grad_x_r,
+     float* __restrict__ grad_x_w,
+@@ -156,7 +158,7 @@ __global__ void tmix_mix6_backward_fused_kernel_v5(
+         __nv_bfloat162 next_ga = __floats2bfloat162_rn(0.0f, 0.0f);
+         __nv_bfloat162 next_gg = __floats2bfloat162_rn(0.0f, 0.0f);
+         bool have_next_grad = false;
+-        if (t + 1 < t_size) {
++        if (t + 1 < t_size && sequence_start_mask[bt + 1] == 0) {
+             int64_t next_idx = idx + c_size;
+             next_gr = load_bf16x2(grad_r + next_idx);
+             next_gw = load_bf16x2(grad_w + next_idx);
+@@ -186,7 +188,7 @@ __global__ void tmix_mix6_backward_fused_kernel_v5(
+ 
+         float2 x_now = __bfloat1622float2(load_bf16x2(x + idx));
+         float2 x_prev = make_float2(0.0f, 0.0f);
+-        if (t > 0) {
++        if (t > 0 && sequence_start_mask[bt] == 0) {
+             x_prev = (have_prev_x ? prev_x : __bfloat1622float2(load_bf16x2(x + idx - c_size)));
+         }
+         float dx0 = x_prev.x - x_now.x;
+@@ -241,7 +243,8 @@ std::vector<torch::Tensor> tmix_mix6_forward_v5_cuda(
+     torch::Tensor x_k,
+     torch::Tensor x_v,
+     torch::Tensor x_a,
+-    torch::Tensor x_g) {
++    torch::Tensor x_g,
++    torch::Tensor sequence_start_mask) {
+     auto out_r = torch::empty_like(x);
+     auto out_w = torch::empty_like(x);
+     auto out_k = torch::empty_like(x);
+@@ -263,6 +266,7 @@ std::vector<torch::Tensor> tmix_mix6_forward_v5_cuda(
+         x_v.data_ptr<at::BFloat16>(),
+         x_a.data_ptr<at::BFloat16>(),
+         x_g.data_ptr<at::BFloat16>(),
++        sequence_start_mask.data_ptr<uint8_t>(),
+         out_r.data_ptr<at::BFloat16>(),
+         out_w.data_ptr<at::BFloat16>(),
+         out_k.data_ptr<at::BFloat16>(),
+@@ -289,7 +293,8 @@ std::vector<torch::Tensor> tmix_mix6_backward_v5_cuda(
+     torch::Tensor x_k,
+     torch::Tensor x_v,
+     torch::Tensor x_a,
+-    torch::Tensor x_g) {
++    torch::Tensor x_g,
++    torch::Tensor sequence_start_mask) {
+     auto grad_x = torch::empty_like(x);
+     auto grad_x_r = torch::empty({x.size(2)}, x.options());
+     auto grad_x_w = torch::empty({x.size(2)}, x.options());
+@@ -329,6 +334,7 @@ std::vector<torch::Tensor> tmix_mix6_backward_v5_cuda(
+         x_v.data_ptr<at::BFloat16>(),
+         x_a.data_ptr<at::BFloat16>(),
+         x_g.data_ptr<at::BFloat16>(),
++        sequence_start_mask.data_ptr<uint8_t>(),
+         grad_x.data_ptr<at::BFloat16>(),
+         grad_x_r_fp32.data_ptr<float>(),
+         grad_x_w_fp32.data_ptr<float>(),
+diff --git a/RWKV-v7/train_temp/src/model.py b/RWKV-v7/train_temp/src/model.py
+index 7d28374..6635e7f 100644
+--- a/RWKV-v7/train_temp/src/model.py
++++ b/RWKV-v7/train_temp/src/model.py
+@@ -58,7 +58,7 @@ if 'x070' in os.environ["RWKV_MY_TESTING"]:
+         load(name="rwkv7_clampw", sources=['cuda/rwkv7_clampw.cu', 'cuda/rwkv7_clampw.cpp'], is_python_module=False, verbose=True, extra_cuda_cflags=flags)
+     class RWKV7_CLAMPW_CUDA_OP(torch.autograd.Function):
+         @staticmethod
+-        def forward(ctx,r,w,k,v,a,b):
++        def forward(ctx,r,w,k,v,a,b,sequence_start_mask):
+             B,T,H,N = r.shape
+             assert T%CHUNK_LEN == 0 # if T%CHUNK_LEN != 0: pad your input to T%CHUNK_LEN == 0, or change CHUNK_LEN (will be slower)
+             assert all(i.dtype==torch.bfloat16 for i in [r,w,k,v,a,b])
+@@ -66,21 +66,21 @@ if 'x070' in os.environ["RWKV_MY_TESTING"]:
+             y = torch.empty_like(v)
+             s = torch.empty(B,H,T//CHUNK_LEN,N,N, dtype=torch.float32,device=w.device)
+             sa = torch.empty(B,T,H,N, dtype=torch.float32,device=w.device)
+-            RWKV7_CLAMPW_OP.forward(r,w,k,v,a,b,y,s,sa)
+-            ctx.save_for_backward(r,w,k,v,a,b,s,sa)
++            RWKV7_CLAMPW_OP.forward(r,w,k,v,a,b,sequence_start_mask,y,s,sa)
++            ctx.save_for_backward(r,w,k,v,a,b,sequence_start_mask,s,sa)
+             return y
+         @staticmethod
+         def backward(ctx,dy):
+             assert all(i.dtype==torch.bfloat16 for i in [dy])
+             assert all(i.is_contiguous() for i in [dy])
+-            r,w,k,v,a,b,s,sa = ctx.saved_tensors
++            r,w,k,v,a,b,sequence_start_mask,s,sa = ctx.saved_tensors
+             dr,dw,dk,dv,da,db = [torch.empty_like(x) for x in [r,w,k,v,a,b]]
+-            RWKV7_CLAMPW_OP.backward(r,w,k,v,a,b,dy,s,sa,dr,dw,dk,dv,da,db)
+-            return dr,dw,dk,dv,da,db
+-    def RWKV7_CLAMPW_CUDA(r,w,k,v,a,b):
++            RWKV7_CLAMPW_OP.backward(r,w,k,v,a,b,sequence_start_mask,dy,s,sa,dr,dw,dk,dv,da,db)
++            return dr,dw,dk,dv,da,db,None
++    def RWKV7_CLAMPW_CUDA(r,w,k,v,a,b,sequence_start_mask):
+         B,T,HN = r.shape
+         r,w,k,v,a,b = [i.view(B,T,HN//64,64) for i in [r,w,k,v,a,b]] # can change 64 to your HEAD_SIZE. have to hard-code the number here, or pytorch will complain
+-        return RWKV7_CLAMPW_CUDA_OP.apply(r,w,k,v,a,b).view(B,T,HN)
++        return RWKV7_CLAMPW_CUDA_OP.apply(r,w,k,v,a,b,sequence_start_mask).view(B,T,HN)
+ 
+ ########################################################################################################
+ 
+@@ -90,29 +90,31 @@ load(name="rwkv7_cmix_bf16_v5", sources=["cuda/rwkv7_cmix_bf16_v5.cpp","cuda/rwk
+ 
+ class _CmixLayerV2Fn(torch.autograd.Function):
+     @staticmethod
+-    def forward(ctx, x, x_k, key_weight, value_weight):
++    def forward(ctx, x, x_k, key_weight, value_weight, sequence_start_mask):
+         out, mixed, act = torch.ops.rwkv7_cmix_bf16_v5.forward(
+             x.contiguous(),
+             x_k.contiguous(),
+             key_weight.contiguous(),
+             value_weight.contiguous(),
++            sequence_start_mask.contiguous(),
+         )
+-        ctx.save_for_backward(x, x_k, key_weight, value_weight, mixed, act)
++        ctx.save_for_backward(x, x_k, key_weight, value_weight, sequence_start_mask, mixed, act)
+         return out
+ 
+     @staticmethod
+     def backward(ctx, grad_out):
+-        x, x_k, key_weight, value_weight, mixed, act = ctx.saved_tensors
++        x, x_k, key_weight, value_weight, sequence_start_mask, mixed, act = ctx.saved_tensors
+         grad_x, grad_x_k, grad_key_weight, grad_value_weight = torch.ops.rwkv7_cmix_bf16_v5.backward(
+             grad_out.contiguous(),
+             x,
+             x_k,
+             key_weight,
+             value_weight,
++            sequence_start_mask,
+             mixed,
+             act,
+         )
+-        return grad_x, grad_x_k, grad_key_weight, grad_value_weight
++        return grad_x, grad_x_k, grad_key_weight, grad_value_weight, None
+ 
+ ########################################################################################################
+ 
+@@ -135,7 +137,7 @@ def _backward(ctx, grads):
+         grads[4].contiguous(),
+         grads[5].contiguous(),
+         *ctx.saved_tensors,
+-    ))
++    )) + (None,)
+ 
+ torch.library.register_autograd(
+     "rwkv7_tmix_mix6_bf16_v5::forward",
+@@ -143,7 +145,7 @@ torch.library.register_autograd(
+     setup_context=_setup_context,
+ )
+ 
+-def _forward_op(x, x_r, x_w, x_k, x_v, x_a, x_g):
++def _forward_op(x, x_r, x_w, x_k, x_v, x_a, x_g, sequence_start_mask):
+     return torch.ops.rwkv7_tmix_mix6_bf16_v5.forward(
+         x.contiguous(),
+         x_r.contiguous(),
+@@ -152,6 +154,7 @@ def _forward_op(x, x_r, x_w, x_k, x_v, x_a, x_g):
+         x_v.contiguous(),
+         x_a.contiguous(),
+         x_g.contiguous(),
++        sequence_start_mask.contiguous(),
+     )
+ 
+ @torch.jit.script
+@@ -163,16 +166,17 @@ def _tmix_mix6_bf16_v5_jit(
+     x_v: torch.Tensor,
+     x_a: torch.Tensor,
+     x_g: torch.Tensor,
++    sequence_start_mask: torch.Tensor,
+ ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+-    outs = torch.ops.rwkv7_tmix_mix6_bf16_v5.forward(x.contiguous(), x_r.contiguous(), x_w.contiguous(), x_k.contiguous(), x_v.contiguous(), x_a.contiguous(), x_g.contiguous())
++    outs = torch.ops.rwkv7_tmix_mix6_bf16_v5.forward(x.contiguous(), x_r.contiguous(), x_w.contiguous(), x_k.contiguous(), x_v.contiguous(), x_a.contiguous(), x_g.contiguous(), sequence_start_mask.contiguous())
+     return outs[0], outs[1], outs[2], outs[3], outs[4], outs[5]
+ 
+ if os.environ.get("RWKV_JIT_ON") == "1":
+-    def tmix_mix6_bf16_v5(x, x_r, x_w, x_k, x_v, x_a, x_g):
+-        return _tmix_mix6_bf16_v5_jit(x, x_r, x_w, x_k, x_v, x_a, x_g)
++    def tmix_mix6_bf16_v5(x, x_r, x_w, x_k, x_v, x_a, x_g, sequence_start_mask):
++        return _tmix_mix6_bf16_v5_jit(x, x_r, x_w, x_k, x_v, x_a, x_g, sequence_start_mask)
+ else:
+-    def tmix_mix6_bf16_v5(x, x_r, x_w, x_k, x_v, x_a, x_g, _op=_forward_op):
+-        return tuple(_op(x, x_r, x_w, x_k, x_v, x_a, x_g))
++    def tmix_mix6_bf16_v5(x, x_r, x_w, x_k, x_v, x_a, x_g, sequence_start_mask, _op=_forward_op):
++        return tuple(_op(x, x_r, x_w, x_k, x_v, x_a, x_g, sequence_start_mask))
+ 
+ ########################################################################################################
+ 
+@@ -581,7 +585,7 @@ class RWKV_Tmix_x070(MyModule):
+             self.output.weight.data.zero_()
+ 
+     @MyFunction
+-    def forward(self, x, v_first):
++    def forward(self, x, v_first, sequence_start_mask):
+         B, T, C = x.size()
+         H = self.n_head
+ 
+@@ -604,6 +608,7 @@ class RWKV_Tmix_x070(MyModule):
+             self.x_v.view(-1),
+             self.x_a.view(-1),
+             self.x_g.view(-1),
++            sequence_start_mask,
+         )
+         ############################################################
+ 
+@@ -647,7 +652,7 @@ class RWKV_Tmix_x070(MyModule):
+             a,
+             self.k_a.view(-1),
+         )
+-        x = RWKV7_CLAMPW_CUDA(r, w, k, v, neg_kk, kka)
++        x = RWKV7_CLAMPW_CUDA(r, w, k, v, neg_kk, kka, sequence_start_mask)
+         ############################################################
+ 
+         ############################################################
+@@ -722,8 +727,8 @@ class RWKV_CMix_x070(nn.Module): # fast CUDA version
+         self.key.weight.data.uniform_(-0.5/(args.n_embd**0.5), 0.5/(args.n_embd**0.5))
+         self.value.weight.data.zero_()
+ 
+-    def forward(self, x):
+-        return _CmixLayerV2Fn.apply(x, self.x_k.view(-1), self.key.weight, self.value.weight)
++    def forward(self, x, sequence_start_mask):
++        return _CmixLayerV2Fn.apply(x, self.x_k.view(-1), self.key.weight, self.value.weight, sequence_start_mask)
+ 
+ ########################################################################################################
+ # The RWKV Model with our blocks
+@@ -744,14 +749,14 @@ class Block(nn.Module):
+         self.att = RWKV_Tmix_x070(args, layer_id)
+         self.ffn = RWKV_CMix_x070(args, layer_id)
+ 
+-    def forward(self, x, v_first):
++    def forward(self, x, v_first, sequence_start_mask):
+         if self.layer_id == 0:
+             x = self.ln0(x)
+ 
+-        x_attn, v_first = self.att(self.ln1(x), v_first)
++        x_attn, v_first = self.att(self.ln1(x), v_first, sequence_start_mask)
+         x = x + x_attn
+ 
+-        x = x + self.ffn(self.ln2(x))
++        x = x + self.ffn(self.ln2(x), sequence_start_mask)
+         return x, v_first
+ 
+ 
+@@ -838,27 +843,35 @@ class RWKV(pl.LightningModule):
+             return cfg.get("offload_optimizer") or cfg.get("offload_param")
+         return False
+ 
+-    def _forward_features(self, idx):
++    def _forward_features(self, idx, sequence_start_mask=None):
+         args = self.args
+         B, T = idx.size()
+         assert T <= args.ctx_len, "Cannot forward, model ctx_len is exhausted."
+ 
++        if sequence_start_mask is None:
++            sequence_start_mask = torch.zeros((B, T), dtype=torch.uint8, device=idx.device)
++            sequence_start_mask[:, 0] = 1
++        else:
++            assert sequence_start_mask.shape == (B, T)
++            sequence_start_mask = sequence_start_mask.to(device=idx.device, dtype=torch.uint8).contiguous()
++            assert torch.all(sequence_start_mask[:, 0] != 0)
++
+         x = self.emb(idx)
+ 
+         v_first = torch.empty_like(x)
+         for block in self.blocks:
+             if args.grad_cp == 1:
+-                x, v_first = deepspeed.checkpointing.checkpoint(block, x, v_first)
++                x, v_first = deepspeed.checkpointing.checkpoint(block, x, v_first, sequence_start_mask)
+             else:
+-                x, v_first = block(x, v_first)
++                x, v_first = block(x, v_first, sequence_start_mask)
+ 
+         x = self.ln_out(x)
+         return x
+ 
+     if int(os.environ["RWKV_HEAD_L2WRAP_CE_CHUNK"]) > 0: # saves 70~80% VRAM
+ 
+-        def forward(self, idx):
+-            return self._forward_features(idx)
++        def forward(self, idx, sequence_start_mask=None):
++            return self._forward_features(idx, sequence_start_mask)
+ 
+         def training_step(self, batch, batch_idx):
+             idx, targets = batch
+@@ -867,8 +880,8 @@ class RWKV(pl.LightningModule):
+ 
+     else:
+ 
+-        def forward(self, idx):
+-            x = self._forward_features(idx)
++        def forward(self, idx, sequence_start_mask=None):
++            x = self._forward_features(idx, sequence_start_mask)
+             x = self.head(x)
+             return x
+ 
