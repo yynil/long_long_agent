@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://long-long-agent.local/a0_sft_capacity.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "purpose",
+    "base_config",
+    "base_config_sha256",
+    "input_directory",
+    "input_manifest_sha256",
+    "overfit128_result",
+    "overfit128_result_sha256",
+    "output_directory",
+    "training_seed",
+    "cpu_threads",
+    "updates"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "purpose": {
+      "const": "a0_complete_input_capacity"
+    },
+    "base_config": {
+      "const": "configs/a0_training_preflight.yaml"
+    },
+    "base_config_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "input_directory": {
+      "const": "artifacts/sft_inputs/a0_success_8k_v1"
+    },
+    "input_manifest_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "overfit128_result": {
+      "const": "artifacts/real_sft/a0_overfit_v1/overfit128/result.json"
+    },
+    "overfit128_result_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "output_directory": {
+      "const": "artifacts/real_sft/a0_complete_capacity_v1"
+    },
+    "training_seed": {
+      "const": 20260909
+    },
+    "cpu_threads": {
+      "const": 4
+    },
+    "updates": {
+      "const": 2
+    }
+  }
+}

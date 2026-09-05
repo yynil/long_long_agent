@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "purpose": "a0_sft_input_summary",
+  "date": "2026-09-05",
+  "artifact_directory": "artifacts/sft_inputs/a0_success_8k_v1",
+  "manifest_sha256": "2936e54fb187c770104c4e0cddbab16368da05d6673d456a1aef160f02408882",
+  "verification_sha256": "a6f2152769c58534e109df75b4972fd37f95e46b74205b5205e9b57fbc326b82",
+  "manifest": {
+    "accepted": {
+      "dev": 186,
+      "test": 183,
+      "train": 3329
+    },
+    "code_commit": "47819f7113cac84d1215b29139a02f59810ee003",
+    "config_sha256": "96fdd74a00f2829a76b90084f2001bfb21f318cd63348c20942144edb5725aa8",
+    "files": {
+      "dev.parquet": "51cf9bda632f224f2cb11f6de219de6add74fa23b70b36a2438a12b38ef09706",
+      "excluded.jsonl": "757434c2a64f1d417865883f1a95e221567e944559017226746c4e4892f67a2b",
+      "test.parquet": "e2559b5acec7be1b0a2274f343782a15d8bf8116cb69f2977abb57268f66dbad",
+      "train.parquet": "1055b517c408794f4b4bd68a8364291ad981104b6aede2ac305e5252d16bae11"
+    },
+    "input_tokens": {
+      "dev": {
+        "count": 186,
+        "max": 8190,
+        "p50": 7479,
+        "p95": 8133,
+        "sum": 1314689
+      },
+      "test": {
+        "count": 183,
+        "max": 8192,
+        "p50": 7643,
+        "p95": 8142,
+        "sum": 1322625
+      },
+      "train": {
+        "count": 3329,
+        "max": 8192,
+        "p50": 7616,
+        "p95": 8144.6,
+        "sum": 24082820
+      }
+    },
+    "loss_tokens": {
+      "dev": {
+        "count": 186,
+        "max": 2408,
+        "p50": 132,
+        "p95": 1039.75,
+        "sum": 57713
+      },
+      "test": {
+        "count": 183,
+        "max": 1924,
+        "p50": 123,
+        "p95": 895.9000000000002,
+        "sum": 53133
+      },
+      "train": {
+        "count": 3329,
+        "max": 3107,
+        "p50": 130,
+        "p95": 1066.3999999999996,
+        "sum": 1078726
+      }
+    },
+    "max_tokens": 8192,
+    "purpose": "a0_success_sft_inputs",
+    "rejected": {
+      "dev": {
+        "protected_context_overflow_8k": 14,
+        "source_failure_requires_verified_recovery": 300
+      },
+      "test": {
+        "protected_context_overflow_8k": 27,
+        "source_failure_requires_verified_recovery": 290
+      },
+      "train": {
+        "protected_context_overflow_8k": 251,
+        "source_failure_requires_verified_recovery": 5420
+      }
+    },
+    "scanned_decisions": 10000,
+    "scanned_episodes": 1000,
+    "schema_version": 1,
+    "source_release_sha256": "95b9ba66e2552737779845621e0cb89cba038ab25ba30b2b93a71f677d20b6e2",
+    "status": "built",
+    "tokenizer_sha256": "e6dee3d4e31b4d5c40ac99508ac6c701ceef4bed681bf2167ce9a908552bca89",
+    "training_config_sha256": "3df5b77e97202fce284a5c67a20781e09d9cbdc8cafe4d733c9c616d14afd95a"
+  },
+  "verification": {
+    "accepted": {
+      "dev": 186,
+      "test": 183,
+      "train": 3329
+    },
+    "canonical_source_join": "all_decisions_exact",
+    "cross_split_groups": 0,
+    "duplicate_sample_ids": 0,
+    "excluded": {
+      "dev": 314,
+      "test": 317,
+      "train": 5671
+    },
+    "manifest_sha256": "2936e54fb187c770104c4e0cddbab16368da05d6673d456a1aef160f02408882",
+    "schema_version": 1,
+    "status": "passed",
+    "total_decisions_accounted": 10000
+  }
+}

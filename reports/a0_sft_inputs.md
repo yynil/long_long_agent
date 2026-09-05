@@ -1,6 +1,6 @@
 # A0 完整决策 SFT 输入报告
 
-日期：2026-09-05。状态：协议冻结，完整导出与独立验证待执行。关联 ADR-022 / D-10 / T-05。
+日期：2026-09-05。状态：完整A0决策登记、导出及独立全行验证通过；尚不代表完整SFT训练完成。关联 ADR-022 / D-10 / T-05。
 
 [统一入口](../rwkv7_agent_only_data_training_plan_zh.md) · [数据总览](data_status_report.md) · [真实过拟合](real_a0_overfit.md)
 
@@ -46,3 +46,18 @@ python scripts/prepare_a0_sft_inputs.py verify --root /home/yueyulin/data/long_l
 ## 4. 训练门与限制
 
 缓存完成不等于完整 SFT 已训练，训练 loss 下降不等于真实 Agent 能力提升。完整 train 的最长监督目标需要与已验证容量比较；超过已有覆盖时先做有界容量测试。32/128 overfit、恢复和资源门通过后，才开始绑定此缓存的完整 A0 SFT/验证运行。显式 thinking 在可执行任务中的增益 G1 仍先于规模化 paired 和 M2 latent thinking 预算训练。
+
+## 5. 完整构建与独立验证结果
+
+构建commit `47819f7113cac84d1215b29139a02f59810ee003`；配置SHA `96fdd74a00f2829a76b90084f2001bfb21f318cd63348c20942144edb5725aa8`，派生manifest SHA `2936e54fb187c770104c4e0cddbab16368da05d6673d456a1aef160f02408882`。独立验证passed，全部10,000 decision逐一与canonical source join一致，重复sample ID和跨split group均为0。完整机器证据及各文件SHA见[输入汇总](a0_sft_inputs_summary.json)。
+
+| split | 原准入决策 | 正向SFT输入 | 失败来源排除 | 必要上下文超8K排除 | input tokens | loss tokens |
+|---|---:|---:|---:|---:|---:|---:|
+| train | 9,000 | 3,329 | 5,420 | 251 | 24,082,820 | 1,078,726 |
+| dev | 500 | 186 | 300 | 14 | 1,314,689 | 57,713 |
+| test | 500 | 183 | 290 | 27 | 1,322,625 | 53,133 |
+| 全部 | 10,000 | 3,698 | 6,010 | 292 | 26,720,134 | 1,189,572 |
+
+train input p50/p95/max为7616/8144.6/8192，监督token p50/p95/max为130/1066.4/3107；dev监督max2408，test监督max1924。test只做以上数据统计，不参与模型指标与调参。3,329条train正例不是3,329个独立任务，同episode的多个decision保留在同一split；不是再次扩大原A0任务数量。
+
+容量入口 [validate_a0_sft_capacity.py](../scripts/validate_a0_sft_capacity.py) 绑定此manifest和通过的128结果，选全部train实际packed plan中监督token最多的一行，尾补8192连续更新2次。结果单独进入训练报告，不用token文件验证冒充训练容量通过。

@@ -1,7 +1,7 @@
 # RWKV-7 长 Agent 训练项目规格与执行台账
 
-> 状态：P0 准备阶段 / A0与本机M-02已验收，真实8K预检及固定梯度GPU恢复机制通过 / 原strict与独立原生预算门保留失败；完整overfit与G1未通过，规模化训练No-Go<br>
-> 规格版本：0.12.0<br>
+> 状态：P0收尾 / A0、本机M-02、原生恢复v2与真实32/128各8轮overfit通过；完整A0正向SFT输入独立验证通过；补测全train容量，G1与规模化latent训练未放行<br>
+> 规格版本：0.13.0<br>
 > 创建日期：2026-09-04  
 > 统一入口：[`rwkv7_agent_only_data_training_plan_zh.md`](./rwkv7_agent_only_data_training_plan_zh.md)<br>
 > 设计依据：[原始研究设计正文](docs/research_design_zh.md)
@@ -295,7 +295,7 @@ D-09 本轮完成范围是 Step 057 冻结的 Open-SWE 两教师 A0 候选准入
 | M-05 | 实现 V0 latent control/depth embedding | M-04 | latent step 无 LM-head call；K=0 等价 | 完成：短窗可微 recurrence 与真实 0.4B K=0/K=4 验证通过 |
 | M-06 | 实现 action 与多任务 value readout | M-05 | shape、mask、loss 和梯度测试 | 完成：复用 LM head、九任务 value、masked loss 与真实 0.4B 梯度通过 |
 | M-07 | 实现 state cache 与不可变 cache key | M-03 | hash 任一分量变化即 miss | 待办 |
-| M-08 | 数值、吞吐与显存基准 | M-05 | K=0/1/2/4/8 的 profile | 进行中：真实8K两步及新393监督token更新资源已测；最长监督容量、padded与K系列成本待测（Step094） |
+| M-08 | 数值、吞吐与显存基准 | M-05 | K=0/1/2/4/8 的 profile | 进行中：128计划最长2271监督容量/padded及真实overfit通过；完整train最大3107监督容量与K系列待测（Step103） |
 | M-09 | 实现 packed-varlen RWKV-7 路径 | M-01,M-02 | WKV/TMix/CMix 边界 reset；packed/unpacked 前反向 parity；无跨段串扰 | 进行中：本机 kernel/state-passing parity 与 0.4B 全参数 packed trainer 已通过；SM89/DDP 待验证 |
 
 V1 continuous feedback 只有在 G3 通过后单独立项；不得混入 V0 可行性验证。
@@ -306,11 +306,11 @@ V1 continuous feedback 只有在 G3 通过后单独立项；不得混入 V0 可�
 |---|---|---|---|---|
 | T-01 | 定义只覆盖 assistant/action 的 label mask | D-04,M-02 | token 级 mask golden test | 完成：角色/action 权重、source mask、跨 region token 和边界 target golden test 通过 |
 | T-02 | 复刻官方参数分组、初始化和 decay 规则 | M-01 | 参数名覆盖率 100%，未知参数 fail closed | 完成：0.4B/1.5B base + latent + value 804/804 覆盖；实际 LR/decay 待 tiny overfit 选择 |
-| T-03 | 建立小样本 overfit harness | T-01,T-02,T-10 | 32/128 样本 loss 可预期下降 | 完成（合成机制）：真实32/128输入已准备，另有两步预检通过；完整真实overfit尚未执行（Step088） |
+| T-03 | 建立小样本 overfit harness | T-01,T-02,T-10 | 32/128 样本 loss 可预期下降 | 完成：合成与真实32/128各8轮均通过；末轮/初始0.02526/0.02745、完整256/1024呈现（Step103） |
 | T-04 | 建立 M0 四基线评测 harness | D-10,M-02 | 同 snapshot、seed、预算、工具版本 | 进行中：离线真实dev任务的buggy/gold verifier及sandbox预算通过；M-02本机阻塞解除，Agent loop/四基线仍未完成 |
-| T-05 | 建立 M1 Agent SFT 配置 | D-10,T-03 | 配比、loss weight、resume 可复现 | 进行中：真实预检与固定梯度恢复机制通过；独立原生预算门failed，完整32/128 overfit未放行（Step094） |
+| T-05 | 建立 M1 Agent SFT 配置 | D-10,T-03 | 配比、loss weight、resume 可复现 | 进行中：原生恢复v2/真实overfit通过；完整A0成功来源train3329/dev186输入验证passed，补容量后接SFT/验证（Step103） |
 | T-06 | 建立 M2 fixed-K curriculum 与 loss | D-12,M-05,T-03 | K sampling、KD/exit/anchor 测试 | 阻塞于 G1 |
-| T-07 | 建立指标、checkpoint 与 run registry | P0-05 | run 可追到代码/数据/模型/hardware | 进行中：GPU加载及固定梯度恢复机制逐位一致；旧strict与独立原生预算门failed，须新独立协议；完整overfit/原生恢复未放行（Step094） |
+| T-07 | 建立指标、checkpoint 与 run registry | P0-05 | run 可追到代码/数据/模型/hardware | 进行中：本机原生恢复v2、完整overfit指标与checkpoint通过；旧strict/v1失败保留，长作业/DDP仍未验收（Step103） |
 | T-08 | 建立失败检测与 stop rules | T-04,T-07 | NaN、OOM、漂移、回归自动中止 | 进行中：预检finite/资源与独立原生预算越界停止已验证，失败完整保留；完整训练/Agent回归规则待验收（Step094） |
 | T-09 | 预登记 G1/G2/G3 阈值 | M0 开发 pilot | G1 阈值早于独立确认实验，G2/G3 早于各自主实验 | 进行中：用户接受 ADR-018，等待 pilot |
 | T-10 | 实现 episode-aware packed collator | D-10,T-01,M-09 | `cu_seqlens`/start/loss mask 一致；尾部对齐≤15；token 利用率报告 | 完成：decision→sampler→collator→0.4B trainer 闭环与真实来源利用率画像通过；A0 全量 profile 转入 D-10/M-08 |
@@ -1357,3 +1357,17 @@ Sprint 0 结束定义：G0 全部满足，且能够用一个极小的 synthetic 
 - 固定配置 `configs/a0_sft_inputs.yaml` SHA `96fdd74a00f2829a76b90084f2001bfb21f318cd63348c20942144edb5725aa8`，绑定原A0/tokenizer/训练serialization与mask配置SHA。完整10,000 decision账、成功来源正例、8K保护上下文拒绝策略均在执行前登记；test仅格式/身份验证，不用于模型训练或调参。
 - 执行前验证：148 tests通过（2.90s）、Ruff check/format通过（133文件）、diff检查通过；12项新增测试涵盖来源join、历史/工具mask、Parquet精确schema往返、未知字段/null/NaN/hash篡改、源失败与保护上下文拒绝、未独立验证的loader拒绝。报告独立为 `reports/a0_sft_inputs.md`，统一入口仅添加链接。
 - 命令：隔离worktree干净提交后用固定重建Python、`CUDA_VISIBLE_DEVICES=''` 执行 `scripts/prepare_a0_sft_inputs.py build`，再以独立进程 `verify --root <data root>/artifacts/sft_inputs/a0_success_8k_v1`。输出不可覆盖，失败保留类型和分母，不打印原文；主GPU训练不变。后续根据实际最大监督目标决定是否补容量，缓存passed不自动放行完整SFT或G1。
+
+### 2026-09-05 / Step 102：完整SFT最坏packed监督容量的实现登记
+
+- 关联工作：M-08/T-05/T-08；完整输入以干净 `47819f7` 构建中，真实128训练第6轮全样本CE0.0730984、尚未完成8轮。主工作区与运行代码不改，在隔离worktree准备下一项容量入口；GPU必须等真实128最终passed及输入独立verification passed。
+- 容量定义：冻结seed20260909，按全部合格train决策形成一个完整epoch的8192-token packed plan，选择监督token总数最大的实际row（平局按row顺序）；该row尾部独立reset补齐8192，用同一固定基座连续2次全参数更新，覆盖moment建立后峰值。不读取test、不缩减保护上下文、不按最短目标规避容量；同一plan须证明全部train样本恰覆盖一次并报告tokens/packing分母。
+- 停止线/数值路径全部沿用已有preflight，若OOM/非有限/资源越界即停止并保留失败与能保存的checkpoint。需要内存算法变更时另立ADR和数值验证，不自动换精度/重算/head-only；容量passed也不是正式SFT或G1通过。配置将绑定已完成的overfit128/result与完整输入manifest SHA，执行前提交，不提前填入passed结论。
+
+### 2026-09-05 / Step 103：真实过拟合、完整输入验收与全train容量冻结
+
+- 关联工作：T-03/T-05/T-07/T-08、D-10/M-08；固定 `e4b5612` 四phase均passed、进程退出。32/128均8轮完整覆盖、256/1024步，CE1.048090→0.026471 /1.059638→0.029083，全部轮次下降且无资源/finite越界；真实T-03完成。checkpoint/全量分母/吞吐与每轮分位数见独立 `reports/real_a0_overfit.md` 和机器汇总，不改原失败或宣称Agent增益。
+- 完整输入：按Step101固定 `47819f7` 导出全部1000 episodes/10000 decisions，独立verify passed且canonical join全相同、跨split/duplicate为0。正例train3329/dev186/test183；失败来源6010、8K保护上下文超长292全部登记。输入manifest SHA `2936e54fb187c770104c4e0cddbab16368da05d6673d456a1aef160f02408882`，verification SHA `a6f2152769c58534e109df75b4972fd37f95e46b74205b5205e9b57fbc326b82`；详见独立数据报告/汇总。训练侧max supervision3107，确认需要补测而非复用2271结论。
+- 容量配置SHA `46457678c83cb6272bce45e4c3ea7feb3206c175c54b89d60ab425fa7b26c0f7`，固定overfit128 result SHA `ae26daaec286f3999724c6b0c07cf3f2c611381d8a9b8f1c2595e62ef8108cb6`。新增闭合config/manifest及薄入口，按Step102完整packed row选择，运行前提交。首次CPU测试误引用不存在fixture失败，已改成自包含合成runtime envelope；不依赖本地大产物或GPU。
+- 验证：全仓151 tests通过（4.81s），Ruff check/format通过（137文件），diff通过；新增3项覆盖多sample packed row的总监督最坏值、完整且确定的sample覆盖、空/重复/超长拒绝和闭合配置/manifest往返。输入导出异常路径显式恢复failed状态，避免manifest写出失败仍显示built；不影响已验证构建产物。
+- 执行：同固定重建环境/LM/CUDA/build，干净提交后运行 `scripts/validate_a0_sft_capacity.py`，输出 `<data root>/artifacts/real_sft/a0_complete_capacity_v1`。不自动扩大至正式SFT或latent；容量失败按停止线保存，全部历史权重和失败原件保留。

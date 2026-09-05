@@ -1,0 +1,12 @@
+schema_version: 1
+purpose: a0_complete_input_capacity
+base_config: configs/a0_training_preflight.yaml
+base_config_sha256: 0fb22d6ed382d0c1c1666f74734836690c3ab747af9c50b72d6bbf49695ad436
+input_directory: artifacts/sft_inputs/a0_success_8k_v1
+input_manifest_sha256: 2936e54fb187c770104c4e0cddbab16368da05d6673d456a1aef160f02408882
+overfit128_result: artifacts/real_sft/a0_overfit_v1/overfit128/result.json
+overfit128_result_sha256: ae26daaec286f3999724c6b0c07cf3f2c611381d8a9b8f1c2595e62ef8108cb6
+output_directory: artifacts/real_sft/a0_complete_capacity_v1
+training_seed: 20260909
+cpu_threads: 4
+updates: 2

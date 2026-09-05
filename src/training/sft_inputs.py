@@ -407,6 +407,7 @@ def build_inputs(config_path: Path) -> dict:
         write_json_once(output / "manifest.json", report)
         # The independent verify command is required for admission to a trainer.
     except Exception as error:  # noqa: BLE001 -- type-only failures; no source contents
+        report["status"] = "failed"
         report["exception_type"] = type(error).__name__
         report["rejected"] = {s: dict(v) for s, v in rejected.items()}
     finally:

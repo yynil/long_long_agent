@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://long-long-agent.local/a0_sft_capacity_manifest.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "purpose",
+    "code_commit",
+    "dirty_diff_sha256",
+    "provenance",
+    "runtime",
+    "environment",
+    "command",
+    "resolved_config",
+    "base_config",
+    "plan"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "purpose": {
+      "const": "a0_complete_input_capacity"
+    },
+    "code_commit": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40}$"
+    },
+    "dirty_diff_sha256": {
+      "const": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "provenance": {
+      "$ref": "training_preflight_manifest.schema.json#/properties/provenance"
+    },
+    "runtime": {
+      "$ref": "training_preflight_manifest.schema.json#/properties/runtime"
+    },
+    "environment": {
+      "$ref": "training_preflight_manifest.schema.json#/properties/environment"
+    },
+    "command": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "resolved_config": {
+      "$ref": "a0_sft_capacity.schema.json"
+    },
+    "base_config": {
+      "$ref": "a0_training_preflight.schema.json"
+    },
+    "plan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "seed",
+        "epoch",
+        "sample_count",
+        "pack_rows",
+        "worst_row_index",
+        "worst_loss_tokens",
+        "worst_sample_ids",
+        "worst_real_tokens",
+        "max_individual_loss_tokens",
+        "total_loss_tokens",
+        "total_real_tokens",
+        "total_aligned_tokens",
+        "plan_sha256"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "seed": {
+          "type": "integer"
+        },
+        "epoch": {
+          "const": 0
+        },
+        "sample_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "pack_rows": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "worst_row_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "worst_loss_tokens": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "worst_sample_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "worst_real_tokens": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_individual_loss_tokens": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "total_loss_tokens": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "total_real_tokens": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "total_aligned_tokens": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "plan_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    }
+  }
+}
