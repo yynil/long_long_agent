@@ -82,6 +82,15 @@ def _fingerprint(ids):
     return hashlib.sha256(canonical_json(ids).encode()).hexdigest()
 
 
+def confirmation_start_mask(tokens):
+    if tokens.ndim != 2 or tokens.shape[0] != 1 or tokens.shape[1] < 3:
+        raise ValueError("confirmation mask requires a single nonempty test sequence")
+    starts = torch.zeros_like(tokens, dtype=torch.uint8)
+    starts[:, 0] = 1  # Required by the frozen official packed-forward contract.
+    starts[:, tokens.shape[1] // 3] = 1
+    return starts
+
+
 @torch.inference_mode()
 def run_confirmation(config_path, role, lm, cuda, build, output):
     if output.exists():
@@ -132,8 +141,7 @@ def run_confirmation(config_path, role, lm, cuda, build, output):
                 if len(ids) != length:
                     raise ValueError("short confirmation probe could not fill target length")
                 tokens = torch.tensor([ids], device="cuda")
-                starts = torch.zeros_like(tokens, dtype=torch.uint8)
-                starts[:, length // 3] = 1
+                starts = confirmation_start_mask(tokens)
                 reference = network(tokens, sequence_start_mask=starts)
                 whole, whole_state = stateful_forward(network, tokens, sequence_start_mask=starts)
                 parts, state = [], None

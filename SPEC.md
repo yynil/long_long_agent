@@ -1162,3 +1162,11 @@ Sprint 0 结束定义：G0 全部满足，且能够用一个极小的 synthetic 
 - 生成检查：每提示32个生成token，greedy和temperature0.7各重复两次、固定seed；tokens和stop必须相同，time-budget失败；每长窗K0相同。未把未SFT基座的工具语法能力设成数值门，真实Agent有效率仍属于T-04/M0/G1。
 - 数值策略：正式reference与原生路径均保持原BF16默认、reduction-on，不部署FP64/FP32投影或矩阵行填充；矩阵行对齐仅用于严格层。任何case失败均保存全部结果，继续阻塞训练/M0；异常保留已完成分母及异常类型。
 - 产物：`src/model/generation_confirmation.py`、薄入口、配置/schema与定向测试；新提示CPU token构造覆盖128至16384长度、确定性及高置信翻转拒绝测试通过。报告中明确是工程确认，不是可执行Agent成功率或G1。
+
+### 2026-09-05 / Step 077：独立确认首轮启动拒绝并修正测试入口 mask
+
+- 关联工作：M-02、ADR-019；预登记commit `cb15c56` 已推送个人私有main，全仓111 passed（4.01s）。
+- 命令：固定重建环境/CUDA cache运行 `scripts/validate_generation_confirmation.py --role smoke --lm <固定LM worktree> --cuda <固定CUDA worktree> --build <重建cache> --output <data root>/artifacts/generation_confirmation_smoke_v1.json`。
+- 结果：官方packed forward的入口assert拒绝mask首token=0；harness只设置了中间reset，遗漏官方要求的初始reset。尚未产生任何logits/验收case；报告保留status=failed、execution_exception/AssertionError及计划分母。
+- 最小修订：增加 `confirmation_start_mask`，同时设置位置0和floor(T/3)，保持官方ABI、已登记的内部reset、提示/seed/全部阈值不变；新增CPU mask回归测试。没有修改模型、CUDA或初始状态语义。
+- 下一步：新实现提交后，使用v2文件重新执行全部case；首轮失败文件保持immutable，不把它当数值超限或删除。
