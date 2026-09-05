@@ -23,6 +23,7 @@ flowchart LR
 - [原始研究设计](rwkv7_agent_only_data_training_plan_zh.md)：冻结的研究动机与实验路线。
 - [项目审查](reports/project_progress_review_2026-09-05.md)：工程证据与研究假设的边界。
 - [A0 验收与后续计划](reports/a0_release_assessment.md)：正式数据版本、真实 overfit 输入和当前阻塞。
+- [BF16 原因与独立确认](reports/generation_parity_diagnosis.md)：精度干预证据、旧失败记录及已通过的本机 M-02。
 - [模型架构与源码图集](reports/rwkv7_architecture_assessment.md)：slow/fast、V0 与 packed-varlen。
 
 ## 可复现的本机环境

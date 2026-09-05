@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "scope": "local_sm86_ADR019_engineering_confirmation_not_G1",
+  "status": "passed",
+  "model_code_sha256": "b64e031415899bc382334420e7fd31ee96b3608b8d0e8a5d785689550ccb007c",
+  "run_dirty_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "roles": [
+    {
+      "role": "smoke",
+      "status": "passed",
+      "code_commit": "d38e6ed1446ffab66843f429c234f753f188588b",
+      "config_sha256": "c835c1823646ac20112441e856505d69a215a28216a7cad5092bfd3a223518ee",
+      "matmul_precision": {
+        "fp32_precision": "none",
+        "allow_bf16_reduced_precision_reduction": true
+      },
+      "checkpoint_sha256": "947cb9b8013224e06b112b72204256bec65096cc935a7767ce63d8e3ddef83bb",
+      "elapsed_seconds": 30.715742440894246,
+      "peak_allocated_bytes": 9662005248,
+      "strict_cases": 6,
+      "native_cases": 9,
+      "generation_cases": 6,
+      "native_positions": 576,
+      "confident_positions": 222,
+      "confident_argmax_changes": 0,
+      "worst_relative_rms": 0.009039951488375664,
+      "worst_mean_kl": 0.0010807170765474439,
+      "worst_p95_kl": 0.004515539389103651,
+      "minimum_top1_agreement": 0.953125,
+      "all_strict_exact": true,
+      "all_k0_exact": true,
+      "all_generations_repeatable": true,
+      "failures": []
+    },
+    {
+      "role": "local_v0",
+      "status": "passed",
+      "code_commit": "d38e6ed1446ffab66843f429c234f753f188588b",
+      "config_sha256": "c835c1823646ac20112441e856505d69a215a28216a7cad5092bfd3a223518ee",
+      "matmul_precision": {
+        "fp32_precision": "none",
+        "allow_bf16_reduced_precision_reduction": true
+      },
+      "checkpoint_sha256": "c43176881caf85fe22ad654ab02e7519260d560f3d20420ab590adb0c823860f",
+      "elapsed_seconds": 38.13878459203988,
+      "peak_allocated_bytes": 11859980288,
+      "strict_cases": 6,
+      "native_cases": 9,
+      "generation_cases": 6,
+      "native_positions": 576,
+      "confident_positions": 264,
+      "confident_argmax_changes": 0,
+      "worst_relative_rms": 0.00820627436041832,
+      "worst_mean_kl": 0.0012495375704020262,
+      "worst_p95_kl": 0.004572071135044098,
+      "minimum_top1_agreement": 0.953125,
+      "all_strict_exact": true,
+      "all_k0_exact": true,
+      "all_generations_repeatable": true,
+      "failures": []
+    }
+  ],
+  "source_artifact_sha256": {
+    "generation_confirmation_smoke_v2.json": "23d0f3b594638b66a017a11573c4e5953ff543b89c657917c2878483b9129cec",
+    "generation_confirmation_local_v0_v1.json": "53589122e76f436d378a02a8d9693b991f03f69852363e1ddc9912b0fb52c355"
+  }
+}

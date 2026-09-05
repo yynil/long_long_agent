@@ -1,6 +1,6 @@
 # A0 v1 验收与下一步计划
 
-日期：2026-09-05。结论：A0 的准入、不可变构建和独立复核通过；真实 32/128 overfit 输入已准备，**没有执行对应训练**。M-02 原数值门仍失败，G0/G1 未通过，不能把数据完成等同于研究假设成立。
+日期：2026-09-05。结论：A0 的准入、不可变构建和独立复核通过；真实 32/128 overfit 输入已准备，**没有执行对应训练**。M-02 旧数值门失败保留，ADR-019 本机独立工程确认已通过；远程验证与 G1 仍未通过，不能把数据完成等同于研究假设成立。
 
 ```mermaid
 flowchart TD
@@ -9,8 +9,8 @@ flowchart TD
     RELEASE --> VERIFY[文件 hash / 四表 schema / split / CAS 复核通过]
     VERIFY --> INPUT[真实 32 和 128 个任务输入已准备]
     INPUT --> GATE{M-02 验收协议与实验通过？}
-    GATE -->|尚未通过| STOP[暂停训练及 M0；等待 ADR-019 决策]
-    GATE -->|未来通过| TRAIN[真实 overfit / GPU resume / Agent loop]
+    GATE -->|失败时| STOP[保存证据并诊断；不扩大训练]
+    GATE -->|本机已通过| TRAIN[待做：真实 overfit / GPU resume / Agent loop]
     TRAIN --> M0[M0 开发 pilot / 事前登记 / 独立 G1]
 ```
 
@@ -77,8 +77,8 @@ seed `20260905` 的 16K token-budget 计划有 9,089 rows、66,638 个尾部对�
 
 下一步依赖顺序：
 
-1. ADR-019 已按用户“若确认为 BF16 原因则继续”的条件授权接受（SPEC Step 074～076）；下一步执行已经事前冻结的同形状 recurrence 与原生部署漂移/行为代理独立确认。原失败记录与阈值继续保留，工程确认不取代真实 Agent 评测。
-2. M-02 通过后完成真实 32/128 overfit、GPU 中断恢复、run registry 和 Agent loop；先实测 8K/16K 峰值与有效 token 吞吐。三卡 SM89/DDP/NCCL 的环境验收仍独立待办。
+1. ADR-019 已按用户条件授权接受，本机 M-02 独立工程确认通过（SPEC Step 074～078）。原失败记录与阈值继续保留，工程确认不取代真实 Agent 评测。
+2. 现在可继续本机真实 32/128 overfit、GPU 中断恢复、run registry 和 Agent loop；先做真实 8K tiny smoke 并实测训练峰值与有效 token 吞吐。三卡 SM89/DDP/NCCL 的环境验收仍独立待办。
 3. 完成 20～30 个 dev 任务的 M0 pilot，必要时做受限格式 SFT；在独立确认实验前冻结 G1 数值门槛，并用相同 checkpoint、snapshot、sampling 和工具预算比较四基线。
 4. 只有 G1 通过，才扩大 paired snapshot 数据与 fixed-K V0 训练。若失败，保存诊断并停在该门，不自动推进 M2。
 

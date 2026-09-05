@@ -1,6 +1,6 @@
 # RWKV-7 长 Agent 训练项目规格与执行台账
 
-> 状态：P0 准备阶段 / A0 v1 已验收、BF16 数值原因已隔离、ADR-019 已接受 / M-02 独立确认待通过，正式训练 No-Go<br>
+> 状态：P0 准备阶段 / A0 v1 已验收、BF16 原因已隔离、ADR-019 本机独立确认通过 / 真实 overfit 与 GPU 恢复待验收，规模化训练 No-Go<br>
 > 规格版本：0.11.1<br>
 > 创建日期：2026-09-04  
 > 设计依据：[`rwkv7_agent_only_data_training_plan_zh.md`](./rwkv7_agent_only_data_training_plan_zh.md)
@@ -286,13 +286,13 @@ D-09 本轮完成范围是 Step 057 冻结的 Open-SWE 两教师 A0 候选准入
 | ID | 任务 | 依赖 | 产物/检查 | 状态 |
 |---|---|---|---|---|
 | M-01 | 镜像官方 RWKV-7 训练实现并记录差异 | P0-01 | upstream pin + patch series | 完成：upstream pin、兼容性报告与三份 patch 已验证 |
-| M-02 | 复现基座 tokenizer、前向与生成 | M-01,P0-03 | golden logits/generation；显存报告 | 进行中：BF16精度原因已确认、ADR-019按用户条件授权接受；原门失败保留，准备独立双层验收；正式训练仍阻塞 |
+| M-02 | 复现基座 tokenizer、前向与生成 | M-01,P0-03 | golden logits/generation；显存报告 | 完成（本机SM86/0.4B与1.5B）：ADR-019独立双层确认通过，原失败保留；远程SM89随P0-03另验（Step078） |
 | M-03 | 实现 state tree 的 serialize/clone/restore | M-02 | dtype/device/shape 校验；数值 round-trip | 完成：完整三类层状态、可微 continuation、真实 0.4B 与序列化验证通过 |
 | M-04 | 实现 slow/fast 双状态容器 | M-03 | fast mutation 不污染 slow 的单测 | 完成：决策级所有权、无别名 clone 与真实 0.4B 推进验证通过 |
 | M-05 | 实现 V0 latent control/depth embedding | M-04 | latent step 无 LM-head call；K=0 等价 | 完成：短窗可微 recurrence 与真实 0.4B K=0/K=4 验证通过 |
 | M-06 | 实现 action 与多任务 value readout | M-05 | shape、mask、loss 和梯度测试 | 完成：复用 LM head、九任务 value、masked loss 与真实 0.4B 梯度通过 |
 | M-07 | 实现 state cache 与不可变 cache key | M-03 | hash 任一分量变化即 miss | 待办 |
-| M-08 | 数值、吞吐与显存基准 | M-05 | K=0/1/2/4/8 的 profile | 待办 |
+| M-08 | 数值、吞吐与显存基准 | M-05 | K=0/1/2/4/8 的 profile | 进行中：精度原因、8K/16K工程推理峰值已记录；K系列端到端成本与真实训练吞吐待测 |
 | M-09 | 实现 packed-varlen RWKV-7 路径 | M-01,M-02 | WKV/TMix/CMix 边界 reset；packed/unpacked 前反向 parity；无跨段串扰 | 进行中：本机 kernel/state-passing parity 与 0.4B 全参数 packed trainer 已通过；SM89/DDP 待验证 |
 
 V1 continuous feedback 只有在 G3 通过后单独立项；不得混入 V0 可行性验证。
@@ -304,8 +304,8 @@ V1 continuous feedback 只有在 G3 通过后单独立项；不得混入 V0 可�
 | T-01 | 定义只覆盖 assistant/action 的 label mask | D-04,M-02 | token 级 mask golden test | 完成：角色/action 权重、source mask、跨 region token 和边界 target golden test 通过 |
 | T-02 | 复刻官方参数分组、初始化和 decay 规则 | M-01 | 参数名覆盖率 100%，未知参数 fail closed | 完成：0.4B/1.5B base + latent + value 804/804 覆盖；实际 LR/decay 待 tiny overfit 选择 |
 | T-03 | 建立小样本 overfit harness | T-01,T-02,T-10 | 32/128 样本 loss 可预期下降 | 完成（合成机制）：固定0.4B/FP32-master/packed loss稳定下降；真实32/128不同任务输入已准备，尚未训练（Step 069） |
-| T-04 | 建立 M0 四基线评测 harness | D-10,M-02 | 同 snapshot、seed、预算、工具版本 | 进行中：离线真实dev任务的buggy/gold verifier及sandbox预算通过；Agent loop/四基线未验收，阻塞于M-02 |
-| T-05 | 建立 M1 Agent SFT 配置 | D-10,T-03 | 配比、loss weight、resume 可复现 | 进行中：真实train-only四strata输入及机器计划就绪；训练配方/真实GPU恢复未验收，M-02阻塞 |
+| T-04 | 建立 M0 四基线评测 harness | D-10,M-02 | 同 snapshot、seed、预算、工具版本 | 进行中：离线真实dev任务的buggy/gold verifier及sandbox预算通过；M-02本机阻塞解除，Agent loop/四基线仍未完成 |
+| T-05 | 建立 M1 Agent SFT 配置 | D-10,T-03 | 配比、loss weight、resume 可复现 | 进行中：真实train-only四strata输入及机器计划就绪；本机数值门通过，真实训练配方/32与128 overfit/GPU恢复待验收 |
 | T-06 | 建立 M2 fixed-K curriculum 与 loss | D-12,M-05,T-03 | K sampling、KD/exit/anchor 测试 | 阻塞于 G1 |
 | T-07 | 建立指标、checkpoint 与 run registry | P0-05 | run 可追到代码/数据/模型/hardware | 进行中：单进程 model/FP32-master/optimizer/RNG/sampler 恢复测试通过；真实 run registry 待验收 |
 | T-08 | 建立失败检测与 stop rules | T-04,T-07 | NaN、OOM、漂移、回归自动中止 | 待办 |
@@ -400,7 +400,7 @@ Sprint 0 结束定义：G0 全部满足，且能够用一个极小的 synthetic 
 | ADR-016 | 2026-09-05 | 对 ADR-001 的只读原则作窄范围例外：允许在原始训练计划顶部追加非规范架构图，但不得改写任何既有设计正文 | 用户明确要求每份文档都有图；图只提供导航且已声明实现状态以 SPEC 为准，因而不改变研究设计口径 | 已接受 |
 | ADR-017 | 2026-09-05 | 收紧 ADR-009：decision window 必须保留任务契约、当前必要 observation 和成对工具交互；最小充分上下文超限时拒绝并计数 | Step 053 复现现有裁剪可删除全部任务/observation、仍监督 assistant；这会损坏 action 的条件信息，须在 A0 前解决 | 已接受：用户要求按审查建议完成步骤 1～4 |
 | ADR-018 | 2026-09-05 | M0 分为开发集基座诊断与独立确认实验；必要时在 G1 前做受限的 Agent 格式 SFT，再用同一 SFT checkpoint 比较 no/short/long-think；G1 数值门槛必须早于确认实验冻结 | 避免把格式失败误判为 thinking 无效，以及用确认结果反推 G1 阈值 | 已接受：用户要求按审查建议完成步骤 1～4；G1 仍是 paired 规模化与 M2 的前置门 |
-| ADR-019 | 2026-09-05 | 将 M-02 验收分为“同矩阵形状的严格 recurrence 等价”和“原生部署形状的数值漂移/行为验收”，在独立提示集与长窗上重新事前冻结后者阈值；训练保留官方路径，部署默认不做矩阵行填充 | Step061～063同形状逐值等价；Step074精度对照确认已观察到的BF16形状/reduction舍入差异。原失败与阈值保留，不把诊断充作独立确认 | 已接受：用户明确“如果是bf16的原因，可以继续推进不需要确认”；依Step074触发条件。新独立验收尚未通过，M0/长训练不自动放行 |
+| ADR-019 | 2026-09-05 | 将 M-02 验收分为“同矩阵形状的严格 recurrence 等价”和“原生部署形状的数值漂移/行为验收”，在独立提示集与长窗上重新事前冻结后者阈值；训练保留官方路径，部署默认不做矩阵行填充 | Step061～063同形状逐值等价；Step074～075精度干预确认BF16形状/reduction舍入原因；原失败保留 | 已接受：用户“如果是bf16的原因，可以继续推进不需要确认”；Step078本机独立工程确认通过。非真实Agent/G1通过，不自动扩大训练 |
 
 ## 12. 执行日志
 
@@ -1170,3 +1170,24 @@ Sprint 0 结束定义：G0 全部满足，且能够用一个极小的 synthetic 
 - 结果：官方packed forward的入口assert拒绝mask首token=0；harness只设置了中间reset，遗漏官方要求的初始reset。尚未产生任何logits/验收case；报告保留status=failed、execution_exception/AssertionError及计划分母。
 - 最小修订：增加 `confirmation_start_mask`，同时设置位置0和floor(T/3)，保持官方ABI、已登记的内部reset、提示/seed/全部阈值不变；新增CPU mask回归测试。没有修改模型、CUDA或初始状态语义。
 - 下一步：新实现提交后，使用v2文件重新执行全部case；首轮失败文件保持immutable，不把它当数值超限或删除。
+
+### 2026-09-05 / Step 078：独立双层确认通过，解除本机 M-02 数值阻塞
+
+- 关联工作：M-02/M-08、ADR-019；执行commit `d38e6ed1446ffab66843f429c234f753f188588b`，配置SHA与Step076完全相同。未根据本轮结果修改提示、seed或阈值。
+- 命令：固定重建环境、CUDA_HOME、LM/CUDA worktree和cache，运行 `scripts/validate_generation_confirmation.py --role smoke|local_v0`；输出分别为data root的 `artifacts/generation_confirmation_smoke_v2.json` 与 `generation_confirmation_local_v0_v1.json`。
+- 严格结果：每模型6/6case通过；官方prefill、同形状128/256逐tokenlogits和三类最终state均逐值相同，包含首token及位置42/85 reset。合计12case，仍只有3个新合成提示，不扩大统计任务分母。
+- 原生结果：每模型9/9case通过，分别覆盖最长8192/16384上下文，末尾各64个受检位置。0.4B最坏RMS/mean KL/p95 KL/min top1=0.009040/0.001081/0.004516/0.953125；1.5B=0.008206/0.001250/0.004572/0.953125。每模型576个受检位置，高置信位置222/264，翻转均0；K0全通过。
+- 重复性：每模型6/6生成组（3提示×greedy/temperature0.7）按相同seed重复两次全部一致，无time-budget失败。官方默认BF16/reduction-on保留，没有部署FP64或矩阵行填充。
+- 成本：0.4B30.72s/peak allocated9,662,005,248 bytes；1.5B38.14s/11,859,980,288 bytes。峰值包含整段reference与工程比较，不是部署单token常驻占用或训练峰值。
+- 结果边界：本轮末尾64位置的所有数值实际上也落在旧数值上限内，但输入/上下文/比较流程不同，不能把旧冷启动逐token失败改写成通过。三合成提示工程稳定性不证明真实Agent成功率，不代替M0/G1；远程SM89/DDP/G0仍需在目标硬件验收。
+- 锚点：两个报告SHA分别 `23d0f3b594638b66a017a11573c4e5953ff543b89c657917c2878483b9129cec` / `53589122e76f436d378a02a8d9693b991f03f69852363e1ddc9912b0fb52c355`；Git汇总 `reports/generation_confirmation_summary.json`，完整case和初始失败保留在data root。
+- 验证与状态：全仓112 passed（3.96s），20份Markdown/20图/37链接检查通过；本机M-02完成，M-08进行中。下一工作项是T-03/T-05真实8K tiny smoke及32/128 overfit、T-07 GPU恢复和T-04 Agent loop，不再请求ADR-019确认；规模化训练/G1/M2未宣称完成。
+
+### 2026-09-05 / Step 079：确认报告复核与后续边界交接
+
+- 关联工作：M-02/M-08、T-03/T-05/T-07、P0-00；只读核对报告原文件、当前代码及下一步训练接口。
+- 可复现锚点：两次独立运行的dirty diff均为SHA `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`（空diff），model code SHA均为 `b64e031415899bc382334420e7fd31ee96b3608b8d0e8a5d785689550ccb007c`；机器汇总记录原artifact SHA、配置SHA、代码commit及最坏值/完整分母。
+- 验证：`jq`核对两模型全部计划case、K0、状态、重复性及失败列表；全仓112 tests passed，Ruff check/format通过（110个Python文件）；最终20份Markdown的20图和39个本地链接通过，`git diff --check`通过。GPU作业均已结束，显存0 MiB。
+- 后续只读检查：现有packed trainer/FP32-master checkpoint API及固定DeepSpeed激活重算路径已定位；尚未对真实8K样本执行forward/backward、优化器更新或GPU中断恢复，不能把本轮推理峰值当训练容量结论。
+- 产物/交付：更新README、SPEC、数值诊断/A0后续报告及小型确认汇总，推送用户个人private main；没有新增大数据或模型到Git，没有修改基座/原BF16运行策略，没有启动M0或M2。
+- 当前结论：用户指定的BF16原因条件已经由精度干预证据满足，ADR-019已接受且本机M-02独立工程确认通过；剩余步骤按真实训练与环境阶段门推进，不再因该ADR请求用户确认。
