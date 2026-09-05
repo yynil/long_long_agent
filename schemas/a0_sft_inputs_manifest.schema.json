@@ -1,0 +1,387 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "purpose",
+    "status",
+    "scanned_episodes",
+    "scanned_decisions",
+    "accepted",
+    "rejected",
+    "files",
+    "config_sha256",
+    "source_release_sha256",
+    "tokenizer_sha256",
+    "training_config_sha256",
+    "code_commit",
+    "max_tokens",
+    "input_tokens",
+    "loss_tokens"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "purpose": {
+      "const": "a0_success_sft_inputs"
+    },
+    "status": {
+      "const": "built"
+    },
+    "scanned_episodes": {
+      "const": 1000
+    },
+    "scanned_decisions": {
+      "const": 10000
+    },
+    "accepted": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "train",
+        "dev",
+        "test"
+      ],
+      "properties": {
+        "train": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "dev": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "test": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "rejected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "train",
+        "dev",
+        "test"
+      ],
+      "properties": {
+        "train": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "source_failure_requires_verified_recovery": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "protected_context_overflow_8k": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "dev": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "source_failure_requires_verified_recovery": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "protected_context_overflow_8k": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "test": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "source_failure_requires_verified_recovery": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "protected_context_overflow_8k": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    },
+    "files": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "train.parquet",
+        "dev.parquet",
+        "test.parquet",
+        "excluded.jsonl"
+      ],
+      "properties": {
+        "train.parquet": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "dev.parquet": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "test.parquet": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "excluded.jsonl": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "config_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "source_release_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "tokenizer_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "training_config_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "code_commit": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40}$"
+    },
+    "max_tokens": {
+      "const": 8192
+    },
+    "input_tokens": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "train",
+        "dev",
+        "test"
+      ],
+      "properties": {
+        "train": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "count",
+            "sum",
+            "p50",
+            "p95",
+            "max"
+          ],
+          "properties": {
+            "count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "sum": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "p50": {
+              "type": "number",
+              "minimum": 0
+            },
+            "p95": {
+              "type": "number",
+              "minimum": 0
+            },
+            "max": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "dev": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "count",
+            "sum",
+            "p50",
+            "p95",
+            "max"
+          ],
+          "properties": {
+            "count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "sum": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "p50": {
+              "type": "number",
+              "minimum": 0
+            },
+            "p95": {
+              "type": "number",
+              "minimum": 0
+            },
+            "max": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "test": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "count",
+            "sum",
+            "p50",
+            "p95",
+            "max"
+          ],
+          "properties": {
+            "count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "sum": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "p50": {
+              "type": "number",
+              "minimum": 0
+            },
+            "p95": {
+              "type": "number",
+              "minimum": 0
+            },
+            "max": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    },
+    "loss_tokens": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "train",
+        "dev",
+        "test"
+      ],
+      "properties": {
+        "train": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "count",
+            "sum",
+            "p50",
+            "p95",
+            "max"
+          ],
+          "properties": {
+            "count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "sum": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "p50": {
+              "type": "number",
+              "minimum": 0
+            },
+            "p95": {
+              "type": "number",
+              "minimum": 0
+            },
+            "max": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "dev": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "count",
+            "sum",
+            "p50",
+            "p95",
+            "max"
+          ],
+          "properties": {
+            "count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "sum": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "p50": {
+              "type": "number",
+              "minimum": 0
+            },
+            "p95": {
+              "type": "number",
+              "minimum": 0
+            },
+            "max": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "test": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "count",
+            "sum",
+            "p50",
+            "p95",
+            "max"
+          ],
+          "properties": {
+            "count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "sum": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "p50": {
+              "type": "number",
+              "minimum": 0
+            },
+            "p95": {
+              "type": "number",
+              "minimum": 0
+            },
+            "max": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    }
+  }
+}

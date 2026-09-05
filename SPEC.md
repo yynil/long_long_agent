@@ -406,6 +406,7 @@ Sprint 0 结束定义：G0 全部满足，且能够用一个极小的 synthetic 
 | ADR-019 | 2026-09-05 | 将 M-02 验收分为“同矩阵形状的严格 recurrence 等价”和“原生部署形状的数值漂移/行为验收”，在独立提示集与长窗上重新事前冻结后者阈值；训练保留官方路径，部署默认不做矩阵行填充 | Step061～063同形状逐值等价；Step074～075精度干预确认BF16形状/reduction舍入原因；原失败保留 | 已接受：用户“如果是bf16的原因，可以继续推进不需要确认”；Step078本机独立工程确认通过。非真实Agent/G1通过，不自动扩大训练 |
 | ADR-020 | 2026-09-05 | T-07区分逐值保存/加载、固定梯度optimizer续步和原生反向噪声下的续步验收；新数值预算须在独立确认前冻结，保留原exact失败 | Step087～088：恢复点全部exact；无再次恢复的3次反向仍有微小梯度波动，相关官方归约使用FP32 atomicAdd再转BF16 | 已接受框架（Step089）；Step094固定梯度机制exact，但独立原生预算门failed，后续新预算须重新事前登记；不放行overfit |
 | ADR-021 | 2026-09-05 | ADR-020新增v2尺度归一化工程验收：gradient/moment误差同时限制逐张量relative-L2及max-abs/RMS；保存加载/固定梯度/模型/计数仍exact，旧配置与失败保留 | Step092的absolute上限不能跨梯度尺度迁移；Step094机制exact，源码已涵盖r_k原子归约 | 已接受窄范围推进：用户要求继续尽快进入SFT且既有BF16原因授权有效；具体v2配置必须在新任务GPU前冻结，失败不放行 |
+| ADR-022 | 2026-09-05 | 完整A0 SFT输入准备逐条覆盖全部准入decision的去向：source_success=true才作为首版SFT正例，失败轨迹单独记录等待验证recovery；保持train/dev/test严格分离，8K保护上下文溢出拒绝 | 不把工程overfit中的失败动作自动视为正确监督，且不能把全下载池等同于合格训练集 | 已接受数据准备子范围：用户要求推进完整SFT；不改变canonical release、不自动放行正式训练或G1 |
 
 ## 12. 执行日志
 
@@ -1343,3 +1344,16 @@ Sprint 0 结束定义：G0 全部满足，且能够用一个极小的 synthetic 
 - 关联工作：T-03/T-05/T-07/T-08、M-08；新增 `src/training/real_overfit.py`、薄入口、闭合config/manifest schema与独立报告 `reports/real_a0_overfit.md`，统一入口只增加导航。配置SHA `c76bb36c265d14392c99361ce29aba365f4ce61b362560e5ab0f6ec35ac2b1be`，严格绑定Step098原生passed报告与相同runtime/environment。
 - 验证：136 tests通过（4.70s），Ruff check通过；新增闭合配置拒绝、weighted loss分母/分位数、完整epoch/样本覆盖/末轮与spike判定、CPU真实trainer评估不改计数、manifest离线schema往返测试。检查发现空loss列表需在strict zip前保持长度一致，已在GPU前修复并测试，不改变阈值。
 - 执行：提交后同一干净commit依次运行 `scripts/run_a0_real_overfit.py --run-root <data root>/artifacts/real_sft/a0_overfit_v1 --phase capacity|padded|overfit32|overfit128`，路径/环境沿用Step097；独立进程链按退出码停止。完成后独立报告全量曲线与失败，不混入数据质量报告。
+
+### 2026-09-05 / Step 100：训练期间隔离准备完整SFT数据清单
+
+- 关联工作：D-10/T-05/P0-05，ADR-022；capacity与padded均passed，主工作区以固定 `e4b5612` 执行真实overfit。为不改变运行代码或污染下一GPU phase的干净工作区检查，在data root下创建独立detached Git worktree `tmp/sft-input-development.t7BgDF`，同一Agent完成数据准备，未启动子Agent或修改主训练工作区。
+- 数据准备口径：原A0 1000 episodes/10000 admitted decisions全部登记去向，source success=true的所有准入decision尝试8K保护上下文编码；失败source暂不作正式正例，逐decision记录原因/ID，不复述原文。train/dev/test分别输出、独立manifest/机器schema；缓存只含可追溯token/role/loss字段，不是新canonical release，原始trace及四表不改。
+- 实现及CPU验证不依赖overfit结果，正式训练依赖仍不跳过；主GPU退出后将审计过的代码提交整合回main。数据报告独立记录覆盖、准入/排除、hash、统计与限制。仅首次A0输入完整覆盖，不宣称全池432695行都已质量/许可准入。
+
+### 2026-09-05 / Step 101：完整A0输入导出器与独立验证冻结
+
+- 关联工作：D-10/T-05，ADR-022；新增成功来源全部准入decision导出、闭合配置/manifest schema、逐token region/mask与内容hash、独立全行验证及训练读取门。验证重新读取固定canonical release和CAS，accepted/excluded均回查原decision身份、split和outcome，禁止仅验证派生文件内部自洽。独立验证不重复逐行分词；此限制在独立数据报告明确保留。
+- 固定配置 `configs/a0_sft_inputs.yaml` SHA `96fdd74a00f2829a76b90084f2001bfb21f318cd63348c20942144edb5725aa8`，绑定原A0/tokenizer/训练serialization与mask配置SHA。完整10,000 decision账、成功来源正例、8K保护上下文拒绝策略均在执行前登记；test仅格式/身份验证，不用于模型训练或调参。
+- 执行前验证：148 tests通过（2.90s）、Ruff check/format通过（133文件）、diff检查通过；12项新增测试涵盖来源join、历史/工具mask、Parquet精确schema往返、未知字段/null/NaN/hash篡改、源失败与保护上下文拒绝、未独立验证的loader拒绝。报告独立为 `reports/a0_sft_inputs.md`，统一入口仅添加链接。
+- 命令：隔离worktree干净提交后用固定重建Python、`CUDA_VISIBLE_DEVICES=''` 执行 `scripts/prepare_a0_sft_inputs.py build`，再以独立进程 `verify --root <data root>/artifacts/sft_inputs/a0_success_8k_v1`。输出不可覆盖，失败保留类型和分母，不打印原文；主GPU训练不变。后续根据实际最大监督目标决定是否补容量，缓存passed不自动放行完整SFT或G1。

@@ -1,0 +1,12 @@
+schema_version: 1
+purpose: a0_success_sft_inputs
+release_id: a0-v1
+release_manifest_sha256: 95b9ba66e2552737779845621e0cb89cba038ab25ba30b2b93a71f677d20b6e2
+selection: all_admitted_source_success_decisions_v1
+max_tokens: 8192
+tokenizer_sha256: e6dee3d4e31b4d5c40ac99508ac6c701ceef4bed681bf2167ce9a908552bca89
+training_config_sha256: 3df5b77e97202fce284a5c67a20781e09d9cbdc8cafe4d733c9c616d14afd95a
+expected_episodes: 1000
+expected_decisions: 10000
+splits: [train, dev, test]
+output_directory: artifacts/sft_inputs/a0_success_8k_v1

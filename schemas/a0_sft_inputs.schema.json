@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object", "additionalProperties": false,
+  "required": ["schema_version", "purpose", "release_id", "release_manifest_sha256", "selection", "max_tokens", "tokenizer_sha256", "training_config_sha256", "expected_episodes", "expected_decisions", "splits", "output_directory"],
+  "properties": {
+    "schema_version": {"const": 1}, "purpose": {"const": "a0_success_sft_inputs"}, "release_id": {"const": "a0-v1"},
+    "release_manifest_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "selection": {"const": "all_admitted_source_success_decisions_v1"},
+    "max_tokens": {"const": 8192}, "tokenizer_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "training_config_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "expected_episodes": {"const": 1000}, "expected_decisions": {"const": 10000},
+    "splits": {"const": ["train", "dev", "test"]}, "output_directory": {"const": "artifacts/sft_inputs/a0_success_8k_v1"}
+  }
+}

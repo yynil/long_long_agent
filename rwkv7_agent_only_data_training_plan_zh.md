@@ -35,6 +35,7 @@ flowchart TD
 | 真实训练预检 | [A0 两步训练与 GPU 恢复](reports/real_a0_training_preflight.md) | 真实8K输入、全参数更新、独立进程恢复与padded计时；不冒充32/128 overfit |
 | 恢复独立确认 | [ADR-020 GPU恢复三层确认](reports/gpu_resume_confirmation.md) | 保存/加载exact、固定梯度重放、原生反向噪声预算；保留原strict失败 |
 | 真实过拟合训练 | [A0容量与32/128 overfit](reports/real_a0_overfit.md) | 最长监督目标容量、padded计时、完整真实任务训练曲线与阶段门 |
+| SFT完整输入 | [A0逐决策SFT数据报告](reports/a0_sft_inputs.md) | 完整A0准入/排除账、train/dev/test token格式、独立验证与来源边界 |
 | 资源与版本 | [硬件环境](reports/environment.md)、[上游版本盘点](reports/upstream_inventory.md)、[本机环境重建](README.md) | 固定模型/代码/依赖、资源与运行入口 |
 | 项目审查 | [2026-09-05 进展审查](reports/project_progress_review_2026-09-05.md) | 当时的目标、亮点、风险与路线建议；后续状态以 SPEC 为准 |
 
