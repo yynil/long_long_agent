@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import re
 
 import torch
@@ -29,26 +30,31 @@ def tensor_comparison(expected: dict, actual: dict, *, denominator_floor: float)
         count = int(torch.count_nonzero(reference != observed))
         if count:
             delta = observed.double() - reference.double()
-            relative = torch.linalg.vector_norm(delta) / max(
-                float(torch.linalg.vector_norm(reference.double())), denominator_floor
-            )
+            reference_norm = float(torch.linalg.vector_norm(reference.double()))
+            relative = torch.linalg.vector_norm(delta) / max(reference_norm, denominator_floor)
             report["differences"].append(
                 {
                     "parameter": name,
                     "different_elements": count,
                     "max_abs": float(delta.abs().max()),
                     "relative_l2": float(relative),
+                    "max_scaled_abs": float(delta.abs().max())
+                    / max(reference_norm / math.sqrt(reference.numel()), denominator_floor),
                 }
             )
             report["different_elements"] += count
     report["different_tensors"] = len(report["differences"])
-    for metric in ("max_abs", "relative_l2"):
+    for metric in ("max_abs", "relative_l2", "max_scaled_abs"):
         report[metric] = max((row[metric] for row in report["differences"]), default=0.0)
     return report
 
 
 def budget_failures(report: dict, budget: dict) -> list[str]:
-    return [name for name in ("max_abs", "relative_l2") if report[name] > budget[name]]
+    if set(budget) not in ({"max_abs", "relative_l2"}, {"max_scaled_abs", "relative_l2"}):
+        raise ValueError("unknown numerical budget metrics")
+    return [
+        name for name in budget if not math.isfinite(report[name]) or report[name] > budget[name]
+    ]
 
 
 def gradient_failures(report: dict, acceptance: dict, controls: list[dict]) -> list[str]:
@@ -64,7 +70,7 @@ def gradient_failures(report: dict, acceptance: dict, controls: list[dict]) -> l
                 acceptance["envelope_floor"][metric],
                 acceptance["envelope_multiplier"] * max(row[metric] for row in controls),
             )
-            for metric in ("max_abs", "relative_l2")
+            for metric in acceptance["gradient"]
         }
         failures.extend("envelope_" + key for key in budget_failures(report, envelope))
     return failures

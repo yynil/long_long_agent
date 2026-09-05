@@ -85,3 +85,11 @@ capture更新6643 input /393 loss tokens，loss0.3693450689、norm47.75、1.255s
 1. 在新的原生确认协议中，基于BF16表示尺度（例如ULP或尺度归一化误差）定义梯度预算，完整列明源码中的原子归约参数族；仍保留FP32 master/moments、模型/计数/RNG各自的约束。**本报告不预先接受具体新阈值**。
 2. 用未参与上述诊断的新train任务、固定seed，在GPU前提交协议；保留无恢复对照、原生恢复分支和失败停止，不因本次固定梯度成功自动通过原生门。
 3. 原生门通过后再测最长监督目标容量与可比padded baseline，事前登记完整32→128 overfit的步数/下降目标；之后接真实Agent loop和M0开发pilot，不越过G1。
+
+## 7. v2尺度归一化确认：事前登记
+
+用户要求继续并尽快进入完整SFT工程阶段，Step096/ADR-021冻结独立[v2配置](../configs/a0_resume_confirmation_v2.yaml)，不改旧配置或上述失败。新train索引34/35，Qwen3.5-122B失败/成功各一，7863/6419 input tokens、102/722 loss tokens；训练seed20260907，输入重建仍按固定计划seed20260905。新目录`adr021_scaled_v1`，仍使用reference→fixed→native三个独立进程。
+
+gradient与两类FP32 moment同时满足每张量relative-L2≤1e-3、`max_abs / max(reference RMS,1e-30)`≤0.03125。后者为4×BF16 epsilon的**张量尺度归一化限制，不是逐元素4 ULP保证**。梯度还需符合3×无恢复对照包络，normalized-abs/relative-L2 floor为0.001953125/1e-4。原子归约参数族补齐源码的att.r_k；FP32 master仍max-abs≤2e-7且relative-L2≤1e-6，模型、计数、RNG、加载点、固定梯度optimizer及前后loss仍exact。资源限制和失败停止机制不变。
+
+两种config/manifest使用独立闭合schema，程序按明确版本派发；v2 schema同时固定数值，拒绝运行时悄悄调大阈值。此门在新GPU结果前登记，仅允许后续本机工程推进，不取代G1或数据准入。

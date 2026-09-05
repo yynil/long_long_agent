@@ -256,6 +256,33 @@ def test_fixed_diagnostic_config_pins_failed_source_and_rejects_unknown_fields(t
         jsonschema.validate({**manifest, "unexpected": 1}, manifest_schema)
 
 
+def test_v2_scaled_error_is_scale_invariant_and_rejects_unknown_or_loosened_budget(tmp_path):
+    from src.training.resume_confirmation import protocol_suffix
+
+    config, _ = load_protocol(ROOT / "configs/a0_resume_confirmation_v2.yaml")
+    assert config["sample_indices"] == [34, 35]
+    results = []
+    for scale in (1.0, 1024.0, 1 / 1024.0):
+        a = torch.tensor([1.0, 2.0, 3.0]) * scale
+        b = torch.tensor([1.001, 2.0, 3.0]) * scale
+        results.append(tensor_comparison({"w": a}, {"w": b}, denominator_floor=1e-30))
+    assert (
+        results[0]["max_scaled_abs"] == results[1]["max_scaled_abs"] == results[2]["max_scaled_abs"]
+    )
+    assert results[0]["relative_l2"] == results[1]["relative_l2"] == results[2]["relative_l2"]
+    assert not budget_failures(results[0], config["acceptance"]["gradient"])
+    with pytest.raises(ValueError):
+        budget_failures(results[0], {"unexpected": 1})
+    with pytest.raises(ValueError):
+        protocol_suffix({"schema_version": 3})
+    changed = copy.deepcopy(config)
+    changed["acceptance"]["gradient"]["max_scaled_abs"] = 1
+    path = tmp_path / "config.yaml"
+    path.write_text(yaml.safe_dump(changed))
+    with pytest.raises(jsonschema.ValidationError):
+        load_protocol(path)
+
+
 def test_confirmation_manifest_offline_refs_and_closed_schemas():
     # The historical checked-in aggregate provides no runtime payload: use a small
     # synthetic envelope with all official runtime fields, never local artifacts.
@@ -315,3 +342,10 @@ def test_confirmation_manifest_offline_refs_and_closed_schemas():
         with pytest.raises(jsonschema.ValidationError):
             validate_manifest(manifest)
         del target["unexpected"]
+    v2 = copy.deepcopy(manifest)
+    v2["schema_version"] = 2
+    v2["resolved_config"], _ = load_protocol(ROOT / "configs/a0_resume_confirmation_v2.yaml")
+    for i, row in enumerate(v2["selected_samples"], 34):
+        row["input_plan_index"] = i
+    validate_manifest(v2)
+    validate_manifest(json.loads(json.dumps(v2)))

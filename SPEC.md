@@ -405,6 +405,7 @@ Sprint 0 结束定义：G0 全部满足，且能够用一个极小的 synthetic 
 | ADR-018 | 2026-09-05 | M0 分为开发集基座诊断与独立确认实验；必要时在 G1 前做受限的 Agent 格式 SFT，再用同一 SFT checkpoint 比较 no/short/long-think；G1 数值门槛必须早于确认实验冻结 | 避免把格式失败误判为 thinking 无效，以及用确认结果反推 G1 阈值 | 已接受：用户要求按审查建议完成步骤 1～4；G1 仍是 paired 规模化与 M2 的前置门 |
 | ADR-019 | 2026-09-05 | 将 M-02 验收分为“同矩阵形状的严格 recurrence 等价”和“原生部署形状的数值漂移/行为验收”，在独立提示集与长窗上重新事前冻结后者阈值；训练保留官方路径，部署默认不做矩阵行填充 | Step061～063同形状逐值等价；Step074～075精度干预确认BF16形状/reduction舍入原因；原失败保留 | 已接受：用户“如果是bf16的原因，可以继续推进不需要确认”；Step078本机独立工程确认通过。非真实Agent/G1通过，不自动扩大训练 |
 | ADR-020 | 2026-09-05 | T-07区分逐值保存/加载、固定梯度optimizer续步和原生反向噪声下的续步验收；新数值预算须在独立确认前冻结，保留原exact失败 | Step087～088：恢复点全部exact；无再次恢复的3次反向仍有微小梯度波动，相关官方归约使用FP32 atomicAdd再转BF16 | 已接受框架（Step089）；Step094固定梯度机制exact，但独立原生预算门failed，后续新预算须重新事前登记；不放行overfit |
+| ADR-021 | 2026-09-05 | ADR-020新增v2尺度归一化工程验收：gradient/moment误差同时限制逐张量relative-L2及max-abs/RMS；保存加载/固定梯度/模型/计数仍exact，旧配置与失败保留 | Step092的absolute上限不能跨梯度尺度迁移；Step094机制exact，源码已涵盖r_k原子归约 | 已接受窄范围推进：用户要求继续尽快进入SFT且既有BF16原因授权有效；具体v2配置必须在新任务GPU前冻结，失败不放行 |
 
 ## 12. 执行日志
 
@@ -1316,3 +1317,16 @@ Sprint 0 结束定义：G0 全部满足，且能够用一个极小的 synthetic 
 - 关联工作：P0-00/P0-06、T-05/T-07/T-08、M-08；SPEC版本0.12.0记录ADR-020框架及实际失败/诊断结果，未修改原配置的任一数值阈值。详细协议、4次运行的完整分母和限制放在独立恢复报告/机器汇总；统一入口、README及A0报告仅链接，数据报告职责不变。
 - 最终验证：全仓130 tests通过（4.53s）、Ruff check/format通过（126文件）、diff检查通过；24份Markdown/24个Mermaid/122个本地链接通过。机器汇总的4个原始result SHA、3个manifest SHA、4个执行commit和2个配置SHA全部复核一致，独立source manifest通过闭合schema复验。
 - 交付：只提交代码、配置、schema、测试、Markdown及小型JSON汇总，诊断模型/梯度/source checkpoint和失败日志留在data root，未删除任何旧材料。沿用 yynil / yueyu.lin@me.com 身份及既有个人private main，普通commit/push，不改变可见性。下一步仍为新原生确认协议和新train任务，不直接执行较长overfit或规模化训练。
+
+### 2026-09-05 / Step 096：面向完整SFT的下一阶段执行登记
+
+- 关联工作：T-03/T-05/T-07/T-08、M-08、D-10，ADR-021。用户要求尽快进入数据完整的SFT训练/验证，再做latent thinking预算测试；按AGENTS→SPEC→入口→原研究设计核对，起点 `10ea6602e833f80c4c2fbf084b5b885b4191746d`，工作区干净。当前仅A0准入完成，不把432,695行下载池当作全部合格SFT数据。
+- 执行顺序：首先用未测train索引34/35、训练seed20260907重新事前确认原生恢复；通过后立即测128输入中最长监督目标的容量与可比padded基线，依次真实32→128 overfit，再建设A0完整合格train/dev训练与验证入口。SFT数据不使用dev/test训练，也不把所有失败轨迹当正例；数据口径与范围另行冻结并报告。
+- v2工程预算（新GPU前）：gradient、exp_avg、exp_avg_sq每张量relative-L2≤1e-3且max-abs/max(reference RMS,1e-30)≤0.03125（4×BF16 epsilon）；gradient还需符合3×无恢复对照包络，normalized-abs floor=0.001953125（BF16 epsilon/4），relative-L2 floor=1e-4。FP32 master沿用max-abs2e-7及relative-L21e-6；保存/加载、固定梯度optimizer、BF16模型、所有非计时指标、计数/sampler/RNG/更新后loss仍exact。补齐源码已有att.r_k参数族，不允许矩阵梯度任意漂移。旧v1配置、allowlist及failed结论不变。
+- 边界：v2只替代后续工程原生恢复验收，不是重判旧结果或证明长作业误差有界。任一新验收失败/非有限/OOM立即停止该实验并保留证据。正式SFT与后续latent均须相应工程及研究门；G1（显式thinking真实环境增益）依然先于规模化paired/M2，不按“完成SFT”自动放行latent训练。
+
+### 2026-09-05 / Step 097：v2尺度预算实现与GPU前冻结
+
+- 关联工作：T-07/T-08，ADR-021；复用已有三进程确认器，仅增加明确schema v2派发与逐张量max_scaled_abs指标；旧v1配置/schema/失败全部保留。新配置 `configs/a0_resume_confirmation_v2.yaml` SHA `3207610b5f610476441d23c4c863644d82f0e5225b1cf84e1e3b2d48afeef900`，新schema固定各数值并拒绝未知字段，具体协议见独立恢复报告第7节。
+- 实验前验证：131 tests通过（4.64s），Ruff通过；新增按2的幂缩放下归一化误差不变、未知版本/预算以及调大预算拒绝测试，并补v2 manifest往返。只读确认新任务7863/6419 input、102/722 loss tokens，GPU0MiB；未观察新任务GPU结果来调整预算。
+- 执行：提交实现后同一干净commit、原重建环境/固定LM/CUDA/build，入口 `scripts/validate_a0_resume_confirmation.py --config configs/a0_resume_confirmation_v2.yaml --run-root <data root>/artifacts/training_preflight/adr021_scaled_v1 --phase reference|fixed|native`；每phase独立进程，任一非passed即停止后续phase。通过后按Step096推进实际容量/overfit。

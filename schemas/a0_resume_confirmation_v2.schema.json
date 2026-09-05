@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object", "additionalProperties": false,
+  "required": ["schema_version", "purpose", "base_config", "base_config_sha256", "sample_indices", "training_seed", "backward_repeats", "cpu_threads", "acceptance"],
+  "properties": {
+    "schema_version": {"const": 2}, "purpose": {"const": "adr020_resume_confirmation"},
+    "base_config": {"const": "configs/a0_training_preflight.yaml"},
+    "base_config_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "sample_indices": {"const": [34, 35]},
+    "training_seed": {"const": 20260907}, "backward_repeats": {"const": 3}, "cpu_threads": {"const": 4},
+    "acceptance": {
+      "type": "object", "additionalProperties": false,
+      "required": ["master", "exp_avg", "exp_avg_sq", "gradient", "envelope_multiplier", "envelope_floor", "relative_l2_denominator_floor", "exact_sections", "exact_metrics", "gradient_parameter_pattern"],
+      "properties": {
+        "master": {"type": "object", "additionalProperties": false, "required": ["max_abs", "relative_l2"], "properties": {"max_abs": {"const": 2e-7}, "relative_l2": {"const": 1e-6}}},
+        "exp_avg": {"$ref": "#/$defs/budget"}, "exp_avg_sq": {"$ref": "#/$defs/budget"}, "gradient": {"$ref": "#/$defs/budget"},
+        "envelope_floor": {"type": "object", "additionalProperties": false, "required": ["max_scaled_abs", "relative_l2"], "properties": {"max_scaled_abs": {"const": 0.001953125}, "relative_l2": {"const": 1e-4}}},
+        "envelope_multiplier": {"const": 3.0}, "relative_l2_denominator_floor": {"const": 1e-30},
+        "exact_sections": {"const": ["model", "trainer", "sampler", "rng"]}, "exact_metrics": {"const": true},
+        "gradient_parameter_pattern": {"const": "^blocks\\.[0-9]+\\.(att\\.(x_[rwkvag]|k_[ka]|r_k|ln_x\\.(weight|bias))|ffn\\.x_k)$"}
+      }
+    }
+  },
+  "$defs": {"budget": {"type": "object", "additionalProperties": false, "required": ["max_scaled_abs", "relative_l2"], "properties": {"max_scaled_abs": {"const": 0.03125}, "relative_l2": {"const": 1e-3}}}}
+}

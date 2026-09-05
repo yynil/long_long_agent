@@ -47,8 +47,10 @@ from .token_budget_sampler import TokenBudgetPackSampler
 
 def load_protocol(path: Path) -> tuple[dict, dict]:
     config = yaml.safe_load(path.read_text())
+    suffix = protocol_suffix(config)
     jsonschema.validate(
-        config, json.loads((ROOT / "schemas/a0_resume_confirmation.schema.json").read_text())
+        config,
+        json.loads((ROOT / f"schemas/a0_resume_confirmation{suffix}.schema.json").read_text()),
     )
     # JSON serialization rejects non-finite YAML floats even in deeply nested budgets.
     json.dumps(config, allow_nan=False)
@@ -58,14 +60,28 @@ def load_protocol(path: Path) -> tuple[dict, dict]:
     return config, load_config(base_path)
 
 
+def protocol_suffix(value: dict) -> str:
+    if type(value.get("schema_version")) is not int or value["schema_version"] not in (1, 2):
+        raise ValueError("unknown resume protocol version")
+    return "" if value["schema_version"] == 1 else "_v2"
+
+
 def validate_manifest(manifest: dict) -> None:
     registry = Registry()
-    for name in ("training_preflight_manifest", "a0_training_preflight", "a0_resume_confirmation"):
+    for name in (
+        "training_preflight_manifest",
+        "a0_training_preflight",
+        "a0_resume_confirmation",
+        "a0_resume_confirmation_v2",
+    ):
         schema = json.loads((ROOT / f"schemas/{name}.schema.json").read_text())
         registry = registry.with_resource(
             f"https://long-long-agent.local/{name}.schema.json", Resource.from_contents(schema)
         )
-    schema = json.loads((ROOT / "schemas/resume_confirmation_manifest.schema.json").read_text())
+    suffix = protocol_suffix(manifest)
+    schema = json.loads(
+        (ROOT / f"schemas/resume_confirmation{suffix}_manifest.schema.json").read_text()
+    )
     jsonschema.Draft202012Validator(schema, registry=registry).validate(manifest)
 
 
@@ -258,7 +274,7 @@ def run_confirmation(
             "environment_sha256": tree_digest(environment),
         }
         manifest = {
-            "schema_version": 1,
+            "schema_version": protocol["schema_version"],
             "purpose": protocol["purpose"],
             "phase": phase,
             "code_commit": commit,
