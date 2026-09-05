@@ -1059,3 +1059,13 @@ Sprint 0 结束定义：G0 全部满足，且能够用一个极小的 synthetic 
 - 构建v1：质量重验、CAS、四表/报告/splits均生成于 `releases/.a0-v1.building`，但最终验证失败，未rename为正式release。诊断表明仅decisions.decision_type的Parquet默认子字段名`item→element`不同；顶层schema metadata及逻辑类型均相同。
 - 最小修复：writer显式`use_compliant_nested_type=False`保持既有schema的item字段；不修改canonical版本、数据内容或严格验收门。新增全部四表的严格Parquet round-trip回归测试。
 - 重跑策略：保留失败目录至 `releases/.a0-v1.failed-parquet-childname`，不删除证据。实现hash已变，旧admission不绕过hash检查；完整重新审计至a0_admission_v3.json后再构建。D-10仍进行中。
+
+### 2026-09-05 / Step 066：准备真实overfit数据读取接口与交接文档
+
+- 关联工作：T-03/T-05/T-07、D-10；M-02阻塞期间只准备输入，不运行训练。
+- 实现：`src/training/a0_dataset.py`从已通过完整验收的release读取train split、admission与CAS blob，复核source/episode身份；每episode按seed选择一个已经准入的decision，按两教师×成功/失败四strata轮转，形成32/128前缀一致的独立任务集合。8K最小保护上下文超限只拒绝并统计，不把目标换成固定答案或只选最短动作。
+- 产物接口：`scripts/prepare_a0_overfit_inputs.py`与closed `overfit_input_plan.schema.json`；plan只保存样本/任务/目标/token/weight hash、长度、监督区域分母和pack利用率，不保存正文。`training_executed=false`为固定字段。实际执行等待正式A0路径出现。
+- 验证：canonical→blob→NormalizedEpisode逐字段round-trip与非法预算测试通过；加上Parquet round-trip，全仓新环境105 passed（4.03 s）。四份配置JSON Schema和两份新schema自身验证通过，Ruff check/format通过。
+- 文档：新增README入口，明确研究目标、No-Go、带hash环境锁、数据准入和实验边界；`reports/generation_parity_diagnosis.md`保留原门失败与矩阵形状诊断；`reports/executable_environment_fixture.md`区分oracle fixture与Agent结果。
+- 文档QA：复用固定Mermaid/jsdom解析器检查README、两份报告和SPEC，4/4 Mermaid可解析、18个本地链接存在。原研究设计未改动。
+- 审计v3：冻结实现commit59b39c0后完整重跑，目前累计准入数量与v2一致；尚不宣布D-10完成。已在用户对话提出ADR-019的非阻塞确认请求，未假定获批。

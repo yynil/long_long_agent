@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object", "additionalProperties": false,
+  "required": ["schema_version", "purpose", "training_executed", "release_manifest_sha256", "tokenizer_sha256", "seed", "max_tokens", "selection", "rejected_before_128", "profiles", "samples"],
+  "properties": {
+    "schema_version": {"const": 1}, "purpose": {"const": "input_preparation_only"}, "training_executed": {"const": false},
+    "release_manifest_sha256": {"$ref": "#/$defs/hash"}, "tokenizer_sha256": {"$ref": "#/$defs/hash"},
+    "seed": {"type": "integer", "minimum": 0}, "max_tokens": {"type": "integer", "minimum": 16, "multipleOf": 16},
+    "selection": {"const": "train_only_one_hashed_admitted_decision_per_unique_episode_equal_teacher_outcome_v1"},
+    "rejected_before_128": {"type": "object", "additionalProperties": false, "properties": {"protected_context_overflow": {"type": "integer", "minimum": 0}}},
+    "profiles": {"type": "object", "additionalProperties": false, "required": ["32", "128"], "properties": {"32": {"$ref": "#/$defs/profile"}, "128": {"$ref": "#/$defs/profile"}}},
+    "samples": {"type": "array", "minItems": 128, "maxItems": 128, "items": {"$ref": "#/$defs/sample"}}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "counts": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}},
+    "profile": {
+      "type": "object", "additionalProperties": false,
+      "required": ["unique_episodes", "unique_targets", "effective_input_tokens", "pack_rows", "tail_alignment_tokens", "loss_tokens", "teacher_outcome_strata"],
+      "properties": {
+        "unique_episodes": {"type": "integer", "minimum": 1}, "unique_targets": {"type": "integer", "minimum": 1},
+        "effective_input_tokens": {"type": "integer", "minimum": 1}, "pack_rows": {"type": "integer", "minimum": 1},
+        "tail_alignment_tokens": {"type": "integer", "minimum": 0}, "loss_tokens": {"type": "integer", "minimum": 1},
+        "teacher_outcome_strata": {"$ref": "#/$defs/counts"}
+      }
+    },
+    "sample": {
+      "type": "object", "additionalProperties": false,
+      "required": ["episode_id", "task_id_sha256", "message_index", "teacher", "success", "sample_id", "input_tokens", "dropped_messages", "supervised_regions", "target_sha256", "tokens_sha256", "weights_sha256"],
+      "properties": {
+        "episode_id": {"$ref": "#/$defs/hash"}, "task_id_sha256": {"$ref": "#/$defs/hash"}, "sample_id": {"$ref": "#/$defs/hash"},
+        "message_index": {"type": "integer", "minimum": 0}, "teacher": {"enum": ["MiniMax-M2.5", "Qwen3.5-122B"]}, "success": {"type": "boolean"},
+        "input_tokens": {"type": "integer", "minimum": 1}, "dropped_messages": {"type": "integer", "minimum": 0},
+        "supervised_regions": {"$ref": "#/$defs/counts"}, "target_sha256": {"$ref": "#/$defs/hash"}, "tokens_sha256": {"$ref": "#/$defs/hash"}, "weights_sha256": {"$ref": "#/$defs/hash"}
+      }
+    }
+  }
+}
