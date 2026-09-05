@@ -11,6 +11,7 @@ from src.training.episode_collator import PackedEpisodeCollator
 from src.training.packing import CausalSequence
 from src.training.preflight import (
     load_config,
+    optimizer_fingerprints,
     padded_baseline,
     tree_digest,
     validate_manifest,
@@ -137,3 +138,20 @@ def test_manifest_validates_before_and_after_json_and_rejects_tuple_packages():
     bad["resolved_config"]["unexpected"] = True
     with pytest.raises(jsonschema.ValidationError):
         validate_manifest(bad)
+
+
+def test_optimizer_diagnostics_distinguish_master_from_moments():
+    from src.training.parameter_groups import FP32MasterAdamW, OptimizerGroup, OptimizerPlan
+
+    parameter = torch.nn.Parameter(torch.ones(4, dtype=torch.bfloat16))
+    group = OptimizerGroup("base", ("weight",), (parameter,), 1.0, 0.0)
+    optimizer = FP32MasterAdamW(OptimizerPlan((), (group,)), learning_rate=0.001)
+    parameter.grad = torch.ones_like(parameter)
+    optimizer.step()
+    before = optimizer_fingerprints(optimizer)
+    state = optimizer.state_dict()
+    state["master_weights"][0].add_(1e-6)
+    optimizer.load_state_dict(state)
+    after = optimizer_fingerprints(optimizer)
+    assert before["weight"]["master"] != after["weight"]["master"]
+    assert before["weight"]["moments"] == after["weight"]["moments"]

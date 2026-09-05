@@ -121,6 +121,21 @@ def random_probe() -> dict:
     }
 
 
+def optimizer_fingerprints(optimizer) -> dict:
+    """Per-parameter FP32 state diagnostics without publishing tensor values."""
+    state = optimizer.state_dict()
+    ids = [key for group in state["optimizer"]["param_groups"] for key in group["params"]]
+    return {
+        name: {
+            "master": tree_digest(master),
+            "moments": tree_digest(state["optimizer"]["state"].get(key, {})),
+        }
+        for name, master, key in zip(
+            state["parameter_names"], state["master_weights"], ids, strict=True
+        )
+    }
+
+
 def padded_baseline(batch: dict, max_tokens: int) -> dict:
     validate_packed_tensor_batch(batch)
     extra = max_tokens - batch["input_ids"].shape[1]
@@ -392,6 +407,11 @@ def run_preflight(config_path: Path, run_root: Path, phase: str, lm: Path, cuda:
             if entry["failed_checks"]:
                 result["failures"].extend(entry["failed_checks"])
                 raise RuntimeError("preflight stop rule")
+            if row_index == config["steps"] - 1:
+                result["final_gradient_fingerprints"] = {
+                    name: tree_digest(parameter.grad)
+                    for name, parameter in trainer.network.named_parameters()
+                }
             trainer.optimizer.zero_grad(set_to_none=True)
             if phase == "continuous" and row_index == 0:
                 result["stage"] = "save_step1"
@@ -405,23 +425,39 @@ def run_preflight(config_path: Path, run_root: Path, phase: str, lm: Path, cuda:
         result["stage"] = "final_state"
         final = training_fingerprints(trainer, sampler, config["steps"])
         result["final_fingerprints"] = final
+        result["final_optimizer_fingerprints"] = optimizer_fingerprints(trainer.optimizer)
+        # Preserve a finite completed update even if its equivalence check fails.
+        if phase != "padded":
+            result["stage"] = "save_step2"
+            result["checkpoint_sha256"] = save_checkpoint(
+                output / "step2.pt", trainer, sampler, next_row=2, provenance=provenance
+            )
+        result["stage"] = "final_state"
         if final["model"] == initial_model:
             raise RuntimeError("no model parameter update")
         if phase == "resume":
             expected = reference["steps"][1]
             actual = result["steps"][0]
+            result["mismatched_state_sections"] = [
+                key for key in final if final[key] != reference["final_fingerprints"][key]
+            ]
+            result["mismatched_gradients"] = [
+                key
+                for key, value in result["final_gradient_fingerprints"].items()
+                if value != reference["final_gradient_fingerprints"][key]
+            ]
+            result["mismatched_optimizer_parameters"] = [
+                key
+                for key, value in result["final_optimizer_fingerprints"].items()
+                if value != reference["final_optimizer_fingerprints"][key]
+            ]
             if (
                 final != reference["final_fingerprints"]
                 or actual["metrics"] != expected["metrics"]
                 or actual["sample_ids"] != expected["sample_ids"]
             ):
                 raise ValueError("resumed next update differs from continuous reference")
-        if phase != "padded":
-            result["stage"] = "save_step2"
-            result["checkpoint_sha256"] = save_checkpoint(
-                output / "step2.pt", trainer, sampler, next_row=2, provenance=provenance
-            )
-        else:
+        if phase == "padded":
             packed_seconds = sum(x["elapsed_seconds"] for x in reference["steps"])
             padded_seconds = sum(x["elapsed_seconds"] for x in result["steps"])
             result["packed_to_padded_throughput_ratio"] = padded_seconds / packed_seconds

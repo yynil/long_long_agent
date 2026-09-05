@@ -1,6 +1,6 @@
 # 真实 A0 训练预检与 GPU 恢复验证
 
-日期：2026-09-05。当前状态：首轮在训练前因 manifest 序列化被拒绝，已最小修订，待新目录重跑；不是 32/128 overfit 完成报告。
+日期：2026-09-05。当前状态：真实两步全参数更新通过；独立GPU恢复后模型/指标一致，但优化器指纹不同，正在诊断；不是 32/128 overfit 完成报告。
 
 [统一入口](../rwkv7_agent_only_data_training_plan_zh.md) · [数据范围](data_status_report.md) · [A0 输入计划](a0_release_assessment.md)
 
@@ -41,4 +41,8 @@ flowchart TD
 
 首轮 `real8k_v1`：固定输入重建和基座加载通过，包版本列表中的Python tuple被manifest的array schema拒绝；0次更新，无训练loss。只将包列表转换为list并补回归测试，配置/seed/阈值保持不变；旧intent与失败报告保留。不得把加载基座时约0.90GB显存当作8K训练峰值。
 
-新目录重跑待执行，暂不宣称恢复通过。此预检即使通过，也只证明两次真实更新与独立进程恢复，不证明32/128任务集稳定过拟合、真实Agent成功率、SM89/DDP恢复或G1。真实32→128 overfit的完整步数与下降阈值须在对应实验前另行登记。
+`real8k_v2`（commit `4802f51`）：798张量、450,834,432参数全参数更新通过。两任务输入8153/8128 tokens，监督62/66 tokens，loss为1.396583/1.169002，步耗时1.632/1.412s，最高allocated22,589,985,280 bytes（约21.04GiB）。这是不同任务上的两次更新，不能把loss差值解释为收敛；32/128输入中最长监督分别1363/2271 tokens，容量还不能仅凭这两条短目标外推。
+
+独立恢复进程：step1加载后的所有指纹一致；更新2后的loss、gradient norm、BF16模型、RNG、sampler与trainer counters仍exact，仅优化器指纹不同，因此恢复门失败。padded对照和较长overfit暂停。新增逐参数梯度/master/moment诊断与失败checkpoint保留后，在新目录重跑，不放宽exact门，也不把此新差异直接归因于此前ADR-019。
+
+此预检即使通过，也只证明两次真实更新与独立进程恢复，不证明32/128任务集稳定过拟合、真实Agent成功率、SM89/DDP恢复或G1。真实32→128 overfit的完整步数与下降阈值须在对应实验前另行登记。

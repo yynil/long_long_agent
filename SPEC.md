@@ -1241,3 +1241,11 @@ Sprint 0 结束定义：G0 全部满足，且能够用一个极小的 synthetic 
 - 关联工作：P0-05、T-07；固定协议commit `b2272f2` 已推送；重建环境运行 `scripts/validate_a0_training_preflight.py --phase continuous --run-root <data root>/artifacts/training_preflight/real8k_v1`，LM/CUDA worktree和cache沿用Step078路径，PATH包含env/bin与cuda-13.0/bin。
 - 结果：真实128输入重建通过、基座加载成功后，manifest schema拒绝 `packages` 中的Python tuple；尚未创建optimizer或执行前反向/参数更新，steps为空。失败报告与intent保留，阶段runtime/ValidationError，进程退出后GPU0MiB。
 - 原因/修订：Python内存tuple不是JSON Schema array，虽JSON输出时会转array，输出前校验仍须显式list。仅把包版本二元组改为list，并增加完整manifest的内存/JSON round-trip、tuple拒绝和未知嵌套配置拒绝测试；模型、输入、配置SHA和全部阈值不变。提交后使用新 `real8k_v2` 目录重新执行，不覆盖v1或据此改变数值门。
+
+### 2026-09-05 / Step 086：真实两步更新通过，GPU恢复的优化器指纹尚不一致
+
+- 关联工作：M-08、T-03/T-05/T-07；118测试通过后提交 `4802f51e0575f4a610dd8da0ac6d72097dccc1c5` 并推送，保持配置SHA。固定重建环境与LM/CUDA/cache路径，入口依次运行 `--phase continuous` 和独立进程 `--phase resume`，run root为 `<data root>/artifacts/training_preflight/real8k_v2`。
+- 更新证据：450,834,432个参数/798张量全参数训练；两任务真实输入8153/8128、loss tokens62/66；loss1.396583/1.169002、preclip norm318/328，步耗时1.632/1.412s；最高allocated22,589,985,280 bytes，均在事前预检界限内。不同任务的两个loss不表示收敛，最长输入不代表最长监督目标。
+- 恢复证据：加载step1后模型、优化器、RNG、sampler、trainer全部指纹exact；Python/NumPy/Torch CPU/CUDA随机probe相同。独立进程执行下一批后，loss/grad norm等全部非计时指标、BF16模型、RNG、sampler、trainer仍exact，但优化器指纹不同，按原门标记failed；padded对照和较长overfit未启动。
+- 下一诊断：不推定BF16原因、不放宽exact门；补充逐参数梯度、FP32 master/moment指纹，并在最终等价检查前保存有限的完成更新checkpoint，使失败可做张量级复核。仅增加诊断/证据保存，不改模型/optimizer/输入/配置；固定新实现后在新 `real8k_v3` 目录重跑同一协议，v1/v2均保留。
+- 实现验证：新增FP32 master与moment独立指纹测试；首次插入位置使旧manifest断言落入另一测试，Ruff/pytest拒绝，恢复正确函数作用域后修复。全仓测试与Ruff通过后提交，再运行新目录；未修改训练参数或验收阈值。
