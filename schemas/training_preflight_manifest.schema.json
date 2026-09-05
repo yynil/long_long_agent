@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object", "additionalProperties": false,
+  "required": ["schema_version", "purpose", "phase", "code_commit", "dirty_diff_sha256", "provenance", "runtime", "environment", "input_plan_sha256", "command", "resolved_config"],
+  "properties": {
+    "schema_version": {"const": 1}, "purpose": {"const": "real_a0_full_parameter_preflight"},
+    "phase": {"enum": ["continuous", "resume", "padded"]},
+    "code_commit": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+    "dirty_diff_sha256": {"const": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
+    "input_plan_sha256": {"$ref": "#/$defs/hash"},
+    "command": {"type": "array", "items": {"type": "string"}},
+    "resolved_config": {"type": "object", "description": "Also validated against a0_training_preflight.schema.json by validate_manifest."},
+    "provenance": {
+      "type": "object", "additionalProperties": false,
+      "required": ["checkpoint_sha256", "model_code_sha256", "tokenizer_sha256", "data_release_sha256", "config_sha256", "environment_sha256"],
+      "properties": {
+        "checkpoint_sha256": {"$ref": "#/$defs/hash"}, "model_code_sha256": {"$ref": "#/$defs/hash"},
+        "tokenizer_sha256": {"$ref": "#/$defs/hash"}, "data_release_sha256": {"$ref": "#/$defs/hash"},
+        "config_sha256": {"$ref": "#/$defs/hash"}, "environment_sha256": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "environment": {
+      "type": "object", "additionalProperties": false,
+      "required": ["lock_sha256", "packages", "python", "torch", "cuda", "device", "capability", "numerical_flags"],
+      "properties": {
+        "lock_sha256": {"$ref": "#/$defs/hash"},
+        "packages": {"type": "array", "items": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "string"}}},
+        "python": {"type": "string"}, "torch": {"type": "string"}, "cuda": {"type": "string"}, "device": {"type": "string"},
+        "capability": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "integer"}},
+        "numerical_flags": {"$ref": "#/$defs/flags"}
+      }
+    },
+    "runtime": {
+      "type": "object", "additionalProperties": false,
+      "required": ["checkpoint_sha256", "tokenizer_sha256", "upstream_trees", "model_code_sha256", "torch", "cuda", "device", "runtime_environment", "short_inference_bf16_matmul_rows", "matmul_precision"],
+      "properties": {
+        "checkpoint_sha256": {"$ref": "#/$defs/hash"}, "tokenizer_sha256": {"$ref": "#/$defs/hash"}, "model_code_sha256": {"$ref": "#/$defs/hash"},
+        "torch": {"type": "string"}, "cuda": {"type": "string"}, "device": {"type": "string"},
+        "short_inference_bf16_matmul_rows": {"const": "native; alignment is diagnostic-only"},
+        "matmul_precision": {"$ref": "#/$defs/flags"},
+        "upstream_trees": {"type": "array", "minItems": 2, "maxItems": 2, "items": {
+          "type": "object", "additionalProperties": false, "required": ["revision", "patched_files"],
+          "properties": {"revision": {"type": "string", "pattern": "^[a-f0-9]{40}$"}, "patched_files": {"type": "object", "additionalProperties": {"$ref": "#/$defs/hash"}}}
+        }},
+        "runtime_environment": {
+          "type": "object", "additionalProperties": false,
+          "required": ["RWKV_JIT_ON", "RWKV_HEAD_SIZE", "RWKV_MY_TESTING", "RWKV_KERNEL", "RWKV_HEAD_L2WRAP_CE_CHUNK", "TORCH_CUDA_ARCH_LIST"],
+          "properties": {"RWKV_JIT_ON": {"const": "0"}, "RWKV_HEAD_SIZE": {"const": "64"}, "RWKV_MY_TESTING": {"const": "x070"}, "RWKV_KERNEL": {"const": ""}, "RWKV_HEAD_L2WRAP_CE_CHUNK": {"const": "0"}, "TORCH_CUDA_ARCH_LIST": {"type": "string"}}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "flags": {"type": "object", "additionalProperties": false,
+      "required": ["fp32_precision", "allow_bf16_reduced_precision_reduction"],
+      "properties": {"fp32_precision": {"type": "string"}, "allow_bf16_reduced_precision_reduction": {"type": "boolean"}}
+    }
+  }
+}

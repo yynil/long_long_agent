@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object", "additionalProperties": false,
+  "required": ["schema_version", "purpose", "model_role", "release_id", "release_manifest_sha256", "input_plan", "input_plan_sha256", "environment_lock", "seed", "sample_count", "max_tokens", "alignment", "shuffle", "steps", "gradient_checkpointing", "learning_rate", "weight_decay", "beta1", "beta2", "epsilon", "fused_adamw", "head_chunk_tokens", "gradient_clip_norm", "acceptance"],
+  "properties": {
+    "schema_version": {"const": 1}, "purpose": {"const": "real_a0_full_parameter_preflight"},
+    "model_role": {"const": "smoke"}, "release_id": {"const": "a0-v1"},
+    "release_manifest_sha256": {"$ref": "#/$defs/hash"}, "input_plan_sha256": {"$ref": "#/$defs/hash"},
+    "input_plan": {"const": "artifacts/a0_overfit_inputs_v1.json"},
+    "environment_lock": {"const": "configs/requirements-runtime-cu130.lock"},
+    "seed": {"type": "integer", "minimum": 0}, "sample_count": {"const": 32},
+    "max_tokens": {"const": 8192}, "alignment": {"const": 16}, "shuffle": {"const": false},
+    "steps": {"const": 2}, "gradient_checkpointing": {"const": false},
+    "learning_rate": {"type": "number", "exclusiveMinimum": 0},
+    "weight_decay": {"type": "number", "minimum": 0},
+    "beta1": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1},
+    "beta2": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1},
+    "epsilon": {"type": "number", "exclusiveMinimum": 0}, "fused_adamw": {"const": true},
+    "head_chunk_tokens": {"type": "integer", "minimum": 1},
+    "gradient_clip_norm": {"type": "number", "exclusiveMinimum": 0},
+    "acceptance": {
+      "type": "object", "additionalProperties": false,
+      "required": ["maximum_loss", "maximum_preclip_gradient_norm", "maximum_peak_allocated_mib", "maximum_step_seconds", "minimum_first_row_tokens", "resume_comparison"],
+      "properties": {
+        "maximum_loss": {"type": "number", "exclusiveMinimum": 0},
+        "maximum_preclip_gradient_norm": {"type": "number", "exclusiveMinimum": 0},
+        "maximum_peak_allocated_mib": {"type": "integer", "minimum": 1},
+        "maximum_step_seconds": {"type": "number", "exclusiveMinimum": 0},
+        "minimum_first_row_tokens": {"type": "integer", "minimum": 1, "maximum": 8192},
+        "resume_comparison": {"const": "exact"}
+      }
+    }
+  },
+  "$defs": {"hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}
+}

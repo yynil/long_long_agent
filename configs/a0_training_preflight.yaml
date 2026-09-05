@@ -1,0 +1,30 @@
+schema_version: 1
+purpose: real_a0_full_parameter_preflight
+model_role: smoke
+release_id: a0-v1
+release_manifest_sha256: 95b9ba66e2552737779845621e0cb89cba038ab25ba30b2b93a71f677d20b6e2
+input_plan: artifacts/a0_overfit_inputs_v1.json
+input_plan_sha256: c095653410863582b60b73c1324a080837b5c580e0d1c8ac890de0c5205437e9
+environment_lock: configs/requirements-runtime-cu130.lock
+seed: 20260905
+sample_count: 32
+max_tokens: 8192
+alignment: 16
+shuffle: false
+steps: 2
+gradient_checkpointing: false
+learning_rate: 0.000003
+weight_decay: 0.0
+beta1: 0.9
+beta2: 0.99
+epsilon: 1.0e-18
+fused_adamw: true
+head_chunk_tokens: 32
+gradient_clip_norm: 1.0
+acceptance:
+  maximum_loss: 100.0
+  maximum_preclip_gradient_norm: 1000000.0
+  maximum_peak_allocated_mib: 23000
+  maximum_step_seconds: 120
+  minimum_first_row_tokens: 8100
+  resume_comparison: exact

@@ -1227,3 +1227,11 @@ Sprint 0 结束定义：G0 全部满足，且能够用一个极小的 synthetic 
 - 关联工作：P0-00/P0-05/P0-06、M-08、T-03/T-05/T-07/T-08；用户要求继续，先交付Step080～082文档，再按已确认顺序推进本机0.4B真实8K tiny smoke与GPU恢复验证，不启动全量数据扩源或规模化训练。
 - 交付检查：Git作者仍为 `yynil <yueyu.lin@me.com>`，origin指向 `yynil/long_long_agent`；GitHub API确认private=true、默认main。只添加九个已核对Markdown文件，原始研究正文保留；沿用Step082的112测试与文档QA，提交前复核差异，不上传数据/model/blob。
 - 工程依赖：A0、固定128输入计划、本机M-02已通过；读取现有packed trainer、FP32-master、checkpoint与输入恢复接口，下一步先实现闭合配置/run manifest及事前验收阈值，再执行最小GPU实验。若OOM、非有限loss/梯度或恢复不一致，保存报告并停止该实验，不静默缩短任务上下文或切换训练范围。
+
+### 2026-09-05 / Step 084：事前冻结真实8K两步预检与独立GPU恢复协议
+
+- 关联工作：P0-05、M-08、T-03/T-05/T-07/T-08；Step083文档交付commit `cc8b5e152306ecbc174d1a196eb256e4f0534c44` 已推送private main，HEAD/origin相同。GPU只读检查为空闲3090 Ti、0 MiB，data root余量约3.2TiB。
+- 实现与协议：新增 `src/training/preflight.py`、薄入口、配置/manifest schema及单测，独立报告 `reports/real_a0_training_preflight.md` 从统一入口链接。先核对固定128真实输入，再对前32任务的最长两条做连续更新与新进程恢复；不是32/128 overfit完成。
+- 阈值冻结时序：此条与配置先于任何新GPU前反向。固定官方BF16、全参数/FP32-master、lr3e-6、clip1、无激活重算、8K预算；loss≤100、preclip norm≤1e6、peak≤23000MiB、单步返回后耗时≤120s；恢复前后及下一更新状态/非计时指标必须exact。恢复通过才跑同初值/样本的两步padded计时；n=2不做性能收益结论。完整协议与限制见独立报告，不修改ADR-019或G1。
+- 停止与产物：任何OOM/非有限值/恢复差异保存失败且停止该实验，所有checkpoint/raw留data root；报告含hash与代码异常位置，不复述输入。提交固定实现并通过测试后才启动 `continuous`，随后按依赖运行 `resume`、`padded`。
+- 实验前验证：117 tests passed（4.47s）；Ruff check/format通过（116文件），23份Markdown/23图/100本地链接通过，diff检查通过。配置SHA `0fb22d6ed382d0c1c1666f74734836690c3ab747af9c50b72d6bbf49695ad436`；首次Ruff要求显式说明顶层异常捕获，已加保留失败且禁止复述输入的理由，未更改数值策略。
