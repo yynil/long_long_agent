@@ -22,6 +22,7 @@ flowchart LR
 - [规格与执行台账](SPEC.md)：工作项、ADR、命令、结果和阻塞。
 - [原始研究设计](rwkv7_agent_only_data_training_plan_zh.md)：冻结的研究动机与实验路线。
 - [项目审查](reports/project_progress_review_2026-09-05.md)：工程证据与研究假设的边界。
+- [A0 验收与后续计划](reports/a0_release_assessment.md)：正式数据版本、真实 overfit 输入和当前阻塞。
 - [模型架构与源码图集](reports/rwkv7_architecture_assessment.md)：slow/fast、V0 与 packed-varlen。
 
 ## 可复现的本机环境
@@ -53,6 +54,8 @@ build_contamination_index.py
 ```
 
 [A0 配置](configs/a0_release.yaml) 要求 1,000 episodes / 10,000 decisions，train/dev/test=900/50/50，两个教师在每个 split 内各半。审计失败不得构建；输入或相关实现 hash 改变必须重新审计。已有 release 和失败产物不会被覆盖。
+
+`a0-v1` 已于 2026-09-05 完成独立验收，数据位于配置指定的 data root；Git 保存 [manifest 副本](reports/a0_v1_manifest.json)，不包含原始轨迹或 Parquet。该数据版本可用不代表 G0/G1 已通过。
 
 `prepare_a0_overfit_inputs.py` 只准备训练集内、不同任务和不同目标的32/128输入，不执行训练。生成/parity/resume门未通过不得启动长作业。
 

@@ -1,7 +1,7 @@
 # RWKV-7 长 Agent 训练项目规格与执行台账
 
-> 状态：P0 准备阶段 / 架构图审计基线、packed CUDA、state、V0 latent 与 readout 原型完成 / 正式训练 No-Go  
-> 规格版本：0.11.0  
+> 状态：P0 准备阶段 / A0 v1 已验收、32/128 真实输入已准备、本机依赖重建及离线环境 fixture 通过 / M-02 阻塞，正式训练 No-Go<br>
+> 规格版本：0.11.1<br>
 > 创建日期：2026-09-04  
 > 设计依据：[`rwkv7_agent_only_data_training_plan_zh.md`](./rwkv7_agent_only_data_training_plan_zh.md)
 
@@ -246,7 +246,7 @@ artifacts/models/<run_id>/
 | P0-00 | 恢复有效 Git worktree | 可用的 Git metadata | 代码 commit 与 dirty diff 可追溯 | 完成：基线 bd97830 已推送 yynil/long_long_agent 私有仓库 |
 | P0-01 | 固定 checkpoint 与代码 revision | `configs/base_model.yaml` | 所有 revision 非浮动且文件 hash 可复算 | 完成：代码/tokenizer/kernel/checkpoint 均已落盘复核 |
 | P0-02 | 盘点 GPU/CUDA/磁盘/网络/调度器 | `reports/environment.md` | 能估算 M0/M1 所需资源 | 完成 |
-| P0-03 | 建立 Python/CUDA 依赖锁 | lockfile + 容器定义 | 新环境可完成最小前向 | 进行中：66包distribution hash锁、新环境重建/102项测试/全新CUDA cache前向通过；远程环境待建 |
+| P0-03 | 建立 Python/CUDA 依赖锁 | lockfile + 容器定义 | 新环境可完成最小前向 | 进行中：66包distribution hash锁、新环境重建/105项测试/全新CUDA cache前向通过；远程环境待建 |
 | P0-04 | 冻结 held-out 边界 | `data/heldout/*.txt` | 分组规则与污染测试就绪 | 完成：五来源 42,982 group 的 repo/task 90/5/5 hash split、列表校验与 canonical v1.1 接入通过 |
 | P0-05 | 固化数据、训练、评测配置 schema | `schemas/` | CI 可校验所有配置 | 进行中：source registry 与四表 schema 已建立 |
 | P0-06 | 建立跨文档架构图审计基线 | 全部 Markdown 文档；`docs/diagrams/*.png` | 每份文档有精确 Mermaid 图；模型有从系统到源码符号的手绘图并完成链接/图像校验 | 完成：15 份文档各含可解析 Mermaid；5 张 ImageGen 手绘图完成视觉、链接、尺寸与 hash 校验 |
@@ -272,10 +272,12 @@ artifacts/models/<run_id>/
 | D-06 | 实现 Open-SWE-Traces adapter | D-01,D-04 | thinking/no-thinking 与 outcome 保真 | 完成：35 shard 审计与两组真实预览通过 |
 | D-07 | 实现 Orchard adapter | D-01,D-04 | success/failure/recovery 标签保真 | 完成：19 shard 审计与真实预览通过 |
 | D-08 | 实现 Nebius adapters | D-01,D-04 | test log、resolved 与 patch outcome 保真 | 完成：两个子源审计、ID 修正与真实预览通过 |
-| D-09 | 去重、污染、PII/secret 与质量检查 | D-05..08 | 报告可复现；泄漏样本隔离 | 进行中：五来源内容索引完成；质量/许可/敏感内容准入已实现并测试，A0 候选审计待完成 |
-| D-10 | 产出 A0：1K episodes / 10K decisions | D-09 | manifest、四表、splits、报告齐全 | 进行中：先审计后构建的不可变 release 入口已实现，未发布 |
+| D-09 | 去重、污染、PII/secret 与质量检查 | D-05..08 | 报告可复现；泄漏样本隔离 | 完成（A0 范围）：五来源432,695行内容索引；6,236候选审计后1,000条准入；其他来源内容质量不据此获准 |
+| D-10 | 产出 A0：1K episodes / 10K decisions | D-09 | manifest、四表、splits、报告齐全 | 完成：a0-v1 四表、900/50/50 split、质量/污染/许可报告及CAS独立验收通过（Step 068） |
 | D-11 | 生成同 snapshot paired teacher 数据 | G1,D-10 | long/short/no-think/recovery 可执行对照 | 阻塞于 G1 |
 | D-12 | 产出 A1 50K 与 latent A2 20K curated 子集 | G1,D-11 | 配比和 failure taxonomy 达标 | 阻塞于 G1 |
+
+D-09 本轮完成范围是 Step 057 冻结的 Open-SWE 两教师 A0 候选准入；五来源索引只扩大污染比对范围，不代表全量 PII/secret/许可检查通过。任何后续来源或 release 都必须重新通过同一准入链，D-01 的其余 repo 许可审计仍未完成。
 
 首批 A1 目标配比：15% simple no-think、25% normal tool use、25% explicit long-think success、15% verification/finish、15% failure/recovery、5% long-term constraint recall。A2 目标配比：35% think-beats-no-think、20% teacher disagreement、20% recovery/replan、15% verification/finish、10% long-memory dependency。
 
@@ -301,9 +303,9 @@ V1 continuous feedback 只有在 G3 通过后单独立项；不得混入 V0 可�
 |---|---|---|---|---|
 | T-01 | 定义只覆盖 assistant/action 的 label mask | D-04,M-02 | token 级 mask golden test | 完成：角色/action 权重、source mask、跨 region token 和边界 target golden test 通过 |
 | T-02 | 复刻官方参数分组、初始化和 decay 规则 | M-01 | 参数名覆盖率 100%，未知参数 fail closed | 完成：0.4B/1.5B base + latent + value 804/804 覆盖；实际 LR/decay 待 tiny overfit 选择 |
-| T-03 | 建立小样本 overfit harness | T-01,T-02,T-10 | 32/128 样本 loss 可预期下降 | 完成：固定 0.4B 全参数、FP32-master、packed 32/128 合成 Agent 决策稳定下降 |
+| T-03 | 建立小样本 overfit harness | T-01,T-02,T-10 | 32/128 样本 loss 可预期下降 | 完成（合成机制）：固定0.4B/FP32-master/packed loss稳定下降；真实32/128不同任务输入已准备，尚未训练（Step 069） |
 | T-04 | 建立 M0 四基线评测 harness | D-10,M-02 | 同 snapshot、seed、预算、工具版本 | 进行中：离线真实dev任务的buggy/gold verifier及sandbox预算通过；Agent loop/四基线未验收，阻塞于M-02 |
-| T-05 | 建立 M1 Agent SFT 配置 | D-10,T-03 | 配比、loss weight、resume 可复现 | 待办 |
+| T-05 | 建立 M1 Agent SFT 配置 | D-10,T-03 | 配比、loss weight、resume 可复现 | 进行中：真实train-only四strata输入及机器计划就绪；训练配方/真实GPU恢复未验收，M-02阻塞 |
 | T-06 | 建立 M2 fixed-K curriculum 与 loss | D-12,M-05,T-03 | K sampling、KD/exit/anchor 测试 | 阻塞于 G1 |
 | T-07 | 建立指标、checkpoint 与 run registry | P0-05 | run 可追到代码/数据/模型/hardware | 进行中：单进程 model/FP32-master/optimizer/RNG/sampler 恢复测试通过；真实 run registry 待验收 |
 | T-08 | 建立失败检测与 stop rules | T-04,T-07 | NaN、OOM、漂移、回归自动中止 | 待办 |
@@ -1077,3 +1079,32 @@ Sprint 0 结束定义：G0 全部满足，且能够用一个极小的 synthetic 
 - Git产物清单不含模型/raw/blob/Parquet/训练checkpoint；最大的五个文件是用户先前要求的手绘架构图（单个≤2.50 MB）。原始数据、OCI镜像、依赖环境及失败构建目录均在data root。
 - 防误提交：`.gitignore`增加根models/raw/blobs、data/raw/releases及pth/pt/safetensors。`git check-ignore`验证这些路径会被忽略，而`data/heldout/manifest.yaml`不会被忽略。README明确uv cache和Python安装目录也应位于指定data root。
 - 状态：Git防护验证通过；没有删除材料。A0重审继续，所有失败证据可恢复。
+
+### 2026-09-05 / Step 068：A0 v1 正式构建与独立验收通过
+
+- 关联工作：D-09/D-10；冻结实现59b39c0，最终admission/build记录commit `c8609e7a5e4648baa976562a4404cb5e246383b6`。
+- 重审v3完成：6,236候选→1,000准入；与v2的accepted列表和statistics逐项完全相同，只有实现/运行provenance更新。未跳过实现hash检查，未复用旧admission构建。
+- 命令：`.venv/bin/python -u scripts/build_a0_release.py build --index /home/yueyulin/data/long_long_agent/artifacts/data_audit/a0_pool_index_v1.sqlite --admission /home/yueyulin/data/long_long_agent/artifacts/data_audit/a0_admission_v3.json`；exit0，临时目录验收后rename至 `releases/a0-v1`。
+- 独立复核：重建环境运行 `scripts/build_a0_release.py verify --release /home/yueyulin/data/long_long_agent/releases/a0-v1`，exit0/status=passed；全文件hash、四表精确schema、episode/decision引用、900/50/50 split互斥覆盖和全部CAS引用读取通过。
+- 结果：episodes1000、decisions10000、snapshots/forks为空表；MiniMax/Qwen各500，success399/failure601。空snapshot/fork是A0允许的基线状态，不代表D-11 paired数据完成。
+- 锚点：manifest SHA `95b9ba66e2552737779845621e0cb89cba038ab25ba30b2b93a71f677d20b6e2`；admission SHA `bd5a8484d2374542c5c55ae21e6a5e4e4573ad3cc45aae190a1c248efd9a5fb6`；实现 SHA `fad73d5e28e4e22e5d8b54f7b1c4073632ba5aff6ef17b8676b8e0198893fc88`。
+- Git产物：`reports/a0_v1_manifest.json`只保存manifest副本；`reports/a0_release_assessment.md`汇总范围、成本与限制。大表/blob/admission正文留在data root，旧失败目录保持可恢复。
+- 状态：D-09按Step057限定的A0候选范围完成，D-10完成；五来源索引不等于全量质量准入，D-01其余repo许可仍待审计。G0/M-02/G1没有因此通过。
+
+### 2026-09-05 / Step 069：真实32/128输入计划完成，训练继续暂停
+
+- 关联工作：T-03/T-05/T-07；只做输入准备，不修改训练或数值验收门。
+- 命令：重建环境运行 `scripts/prepare_a0_overfit_inputs.py --release /home/yueyulin/data/long_long_agent/releases/a0-v1 --output /home/yueyulin/data/long_long_agent/artifacts/a0_overfit_inputs_v1.json`，exit0；seed20260905、max_tokens8192。
+- 结果：32/128组分别有32/128独立任务、episode和target；四strata各8/32；前32是128的确定性前缀；另拒绝8条保护上下文超限候选。有效输入tokens236,978/932,445，loss tokens10,994/47,069，pack rows32/128，alignment222/947。
+- 产物SHA：`c095653410863582b60b73c1324a080837b5c580e0d1c8ac890de0c5205437e9`；计划只含hash/计数，`training_executed=false`。不把输入多样性当loss下降或环境收益。
+- 验证：全仓重建环境105 passed（3.51s）；Ruff check通过、103 files格式一致。README/SPEC状态与A0报告更新；原审查与失败日志保持历史原貌。
+- 下一步：等待用户对ADR-019明确决策后，才能修改验收协议并预登记独立确认实验；真实overfit/GPU恢复/Agent loop/M0/M2均未宣称完成。未执行训练或消耗远程GPU。
+
+### 2026-09-05 / Step 070：A0 文档、产物边界与个人仓库交付检查
+
+- 关联工作：P0-00/P0-06、D-10；更新SPEC版本0.11.1，只更新交付状态，不改变阶段门。
+- 数据复核：Parquet metadata行数1000/10000/0/0，episode含1000个独立task、575个repo；Git manifest副本与本地产物SHA逐字节相同。没有复制大表、blob或原文到Git。
+- 文档QA：Node/Mermaid/jsdom解析全仓非external的20份Markdown，20个Mermaid图与34个本地链接全部通过。首次 `git diff --check` 指出两行沿用的Markdown尾部双空格；改为显式换行标记后通过，未更改语义。
+- 仓库QA：154个已有tracked文件中，禁止的大产物路径/扩展命中0；最大文件仍是用户授权的架构图（≤2,494,478 bytes）。本次新增仅A0 Markdown报告和小型manifest，无轨迹正文。
+- GitHub API再次确认 `yynil/long_long_agent` 为private、默认main；本地作者 `yynil <yueyu.lin@me.com>`，origin为用户个人仓库。交付命令为显式添加README/SPEC/两份A0报告、普通commit及 `git push origin main`，不使用force、不更改可见性。
+- 验收边界：105项测试通过；D-10完成，T-05只推进输入准备；ADR-019仍提议。正式训练与M0继续暂停，交接请求用户决定数值验收协议。
