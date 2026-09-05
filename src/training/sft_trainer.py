@@ -179,6 +179,38 @@ class PackedAgentSFTTrainer:
             chunk_tokens=self.head_chunk_tokens,
         )
 
+    def state_dict(self) -> dict[str, Any]:
+        from dataclasses import asdict
+
+        return {
+            "schema_version": 1,
+            "progress": asdict(self.progress),
+            "head_chunk_tokens": self.head_chunk_tokens,
+            "gradient_clip_norm": self.gradient_clip_norm,
+        }
+
+    def load_state_dict(self, state: dict[str, Any]) -> None:
+        if set(state) != {"schema_version", "progress", "head_chunk_tokens", "gradient_clip_norm"}:
+            raise ValueError("unknown trainer checkpoint fields")
+        if (
+            state["schema_version"] != 1
+            or state["head_chunk_tokens"] != self.head_chunk_tokens
+            or state["gradient_clip_norm"] != self.gradient_clip_norm
+        ):
+            raise ValueError("trainer checkpoint configuration mismatch")
+        progress = state["progress"]
+        expected = {
+            "optimizer_steps",
+            "sequences",
+            "real_tokens",
+            "aligned_tokens",
+            "effective_loss_tokens",
+        }
+        if set(progress) != expected or any(type(v) is not int or v < 0 for v in progress.values()):
+            raise ValueError("invalid trainer checkpoint counters")
+        for key, value in progress.items():
+            setattr(self, "_" + key, value)
+
     def train_step(self, batch: dict[str, Any]) -> SFTStepMetrics:
         self.network.train()
         self.optimizer.zero_grad(set_to_none=True)

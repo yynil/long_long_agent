@@ -174,7 +174,7 @@ def verify_local_files(destination: Path, files: list[dict[str, Any]], asset: As
             raise RuntimeError(
                 f"File-size mismatch for {path}: {path.stat().st_size} != {expected_size}"
             )
-        expected_sha = asset.expected_sha256.get(item["path"])
+        expected_sha = asset.expected_sha256.get(item["path"]) or item.get("lfs_sha256")
         if expected_sha:
             actual_sha = sha256_file(path)
             if actual_sha != expected_sha:

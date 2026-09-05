@@ -1,0 +1,14 @@
+schema_version: 1
+release_id: a0-v1
+source_id: open_swe_traces_openhands_pair
+source_registry: configs/sources.yaml
+task_registry: configs/evaluation_sources.yaml
+heldout_manifest: data/heldout/manifest.yaml
+training_config: configs/training_data.yaml
+seed: 20260905
+episodes_per_split: {train: 900, dev: 50, test: 50}
+teachers: [MiniMax-M2.5, Qwen3.5-122B]
+decisions_per_episode: 10
+require_known_outcome: true
+require_task_join: true
+maximum_scan_episodes: 84066

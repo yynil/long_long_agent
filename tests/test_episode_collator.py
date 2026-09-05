@@ -190,7 +190,7 @@ def test_pack_tokenized_rejects_unknown_item_type() -> None:
         collator.pack_tokenized([object()])
 
 
-def test_decision_window_drops_old_messages_at_boundaries() -> None:
+def test_decision_window_rejects_budget_that_discards_task_and_observation() -> None:
     episode = example_episode()
     target_index = decision_message_indices(episode)[-1]
     config = EpisodeEncodingConfig(include_tool_schema=False)
@@ -201,17 +201,59 @@ def test_decision_window_drops_old_messages_at_boundaries() -> None:
     )
     minimum = tokenize_episode(minimal_episode, ByteLevelTokenizer(), config)
     max_tokens = len(minimum.token_ids) + 8
+    with pytest.raises(ValueError, match="protected context"):
+        tokenize_decision(
+            episode, target_index, ByteLevelTokenizer(), max_tokens=max_tokens, config=config
+        )
+
+
+def test_window_preserves_task_and_latest_exchange_while_removing_old_pair() -> None:
+    episode = example_episode()
+    old_action = replace(episode.messages[1], reasoning="old reasoning " * 100)
+    old_result = replace(episode.messages[2], content="old result " * 100)
+    messages = (
+        episode.messages[0],
+        old_action,
+        old_result,
+        episode.messages[1],
+        episode.messages[2],
+        episode.messages[3],
+    )
+    episode = replace(episode, messages=messages)
     window = tokenize_decision(
         episode,
-        target_index,
+        5,
         ByteLevelTokenizer(),
-        max_tokens=max_tokens,
-        config=config,
+        max_tokens=500,
+        config=EpisodeEncodingConfig(include_tool_schema=False),
     )
+    text = window.episode.rendered_text
+    assert window.dropped_message_count == 2
+    assert "Inspect the repository" in text and "README.md" in text and "Done." in text
+    assert "old reasoning" not in text and "old result" not in text
+    assert text.count("<tool_call>") == text.count("<tool_response>") == 1
+    assert window.episode.loss_token_counts().get("assistant_action", 0) == 0
 
-    assert window.dropped_message_count > 0
-    assert len(window.episode.token_ids) - 1 <= max_tokens
-    assert "Done." in window.episode.rendered_text
+
+def test_window_injects_missing_task_contract_with_zero_loss() -> None:
+    episode = replace(example_episode(), task_text="Preserve the original API.")
+    window = tokenize_decision(episode, 3, ByteLevelTokenizer(), max_tokens=4096)
+    assert "Task contract:\nPreserve the original API." in window.episode.rendered_text
+    assert region_weights(window.episode, "user") == {0.0}
+
+
+def test_window_keeps_all_parallel_tool_results_and_caller() -> None:
+    episode = example_episode()
+    messages = (
+        *episode.messages[:3],
+        replace(episode.messages[2], content="SECOND RESULT"),
+        episode.messages[-1],
+    )
+    window = tokenize_decision(
+        replace(episode, messages=messages), 4, ByteLevelTokenizer(), max_tokens=4096
+    )
+    text = window.episode.rendered_text
+    assert "README.md" in text and "SECOND RESULT" in text and "<tool_call>" in text
 
 
 def test_decision_window_rejects_untrainable_assistant() -> None:

@@ -243,7 +243,7 @@ artifacts/models/<run_id>/
 
 | ID | 任务 | 产物 | 验收条件 | 状态 |
 |---|---|---|---|---|
-| P0-00 | 恢复有效 Git worktree | 可用的 Git metadata | 代码 commit 与 dirty diff 可追溯 | 进行中：已初始化 `main`，尚无基线 commit |
+| P0-00 | 恢复有效 Git worktree | 可用的 Git metadata | 代码 commit 与 dirty diff 可追溯 | 完成：基线 bd97830 已推送 yynil/long_long_agent 私有仓库 |
 | P0-01 | 固定 checkpoint 与代码 revision | `configs/base_model.yaml` | 所有 revision 非浮动且文件 hash 可复算 | 完成：代码/tokenizer/kernel/checkpoint 均已落盘复核 |
 | P0-02 | 盘点 GPU/CUDA/磁盘/网络/调度器 | `reports/environment.md` | 能估算 M0/M1 所需资源 | 完成 |
 | P0-03 | 建立 Python/CUDA 依赖锁 | lockfile + 容器定义 | 新环境可完成最小前向 | 进行中：本机数据/训练环境与 CUDA smoke 已通过，远程环境待建 |
@@ -272,8 +272,8 @@ artifacts/models/<run_id>/
 | D-06 | 实现 Open-SWE-Traces adapter | D-01,D-04 | thinking/no-thinking 与 outcome 保真 | 完成：35 shard 审计与两组真实预览通过 |
 | D-07 | 实现 Orchard adapter | D-01,D-04 | success/failure/recovery 标签保真 | 完成：19 shard 审计与真实预览通过 |
 | D-08 | 实现 Nebius adapters | D-01,D-04 | test log、resolved 与 patch outcome 保真 | 完成：两个子源审计、ID 修正与真实预览通过 |
-| D-09 | 去重、污染、PII/secret 与质量检查 | D-05..08 | 报告可复现；泄漏样本隔离 | 进行中：统一 split identity 与 held-out 边界已完成；内容去重、secret/PII、license/质量扫描待实现 |
-| D-10 | 产出 A0：1K episodes / 10K decisions | D-09 | manifest、四表、splits、报告齐全 | 待办 |
+| D-09 | 去重、污染、PII/secret 与质量检查 | D-05..08 | 报告可复现；泄漏样本隔离 | 进行中：五来源内容索引完成；质量/许可/敏感内容准入已实现并测试，A0 候选审计待完成 |
+| D-10 | 产出 A0：1K episodes / 10K decisions | D-09 | manifest、四表、splits、报告齐全 | 进行中：先审计后构建的不可变 release 入口已实现，未发布 |
 | D-11 | 生成同 snapshot paired teacher 数据 | G1,D-10 | long/short/no-think/recovery 可执行对照 | 阻塞于 G1 |
 | D-12 | 产出 A1 50K 与 latent A2 20K curated 子集 | G1,D-11 | 配比和 failure taxonomy 达标 | 阻塞于 G1 |
 
@@ -305,7 +305,7 @@ V1 continuous feedback 只有在 G3 通过后单独立项；不得混入 V0 可�
 | T-04 | 建立 M0 四基线评测 harness | D-10,M-02 | 同 snapshot、seed、预算、工具版本 | 待办 |
 | T-05 | 建立 M1 Agent SFT 配置 | D-10,T-03 | 配比、loss weight、resume 可复现 | 待办 |
 | T-06 | 建立 M2 fixed-K curriculum 与 loss | D-12,M-05,T-03 | K sampling、KD/exit/anchor 测试 | 阻塞于 G1 |
-| T-07 | 建立指标、checkpoint 与 run registry | P0-05 | run 可追到代码/数据/模型/hardware | 待办 |
+| T-07 | 建立指标、checkpoint 与 run registry | P0-05 | run 可追到代码/数据/模型/hardware | 进行中：单进程 model/FP32-master/optimizer/RNG/sampler 恢复测试通过；真实 run registry 待验收 |
 | T-08 | 建立失败检测与 stop rules | T-04,T-07 | NaN、OOM、漂移、回归自动中止 | 待办 |
 | T-09 | 预登记 G1/G2/G3 阈值 | M0 开发 pilot | G1 阈值早于独立确认实验，G2/G3 早于各自主实验 | 进行中：用户接受 ADR-018，等待 pilot |
 | T-10 | 实现 episode-aware packed collator | D-10,T-01,M-09 | `cu_seqlens`/start/loss mask 一致；尾部对齐≤15；token 利用率报告 | 完成：decision→sampler→collator→0.4B trainer 闭环与真实来源利用率画像通过；A0 全量 profile 转入 D-10/M-08 |
@@ -961,3 +961,40 @@ Sprint 0 结束定义：G0 全部满足，且能够用一个极小的 synthetic 
 - 本阶段验收：保护上下文的正反例测试；D-09 绑定内容 hash 的审计和准入；A0 四表/split/报告；所有下载与大产物仍落入指定 `/home/yueyulin/data/long_long_agent`。
 - 停止条件：许可/污染/质量未通过不发布；GPU parity/resume 未通过不开长作业；G1 不通过不生产规模 paired 或训练 M2。
 - 状态：进行中，先实施上下文保护和数据准入。
+
+### 2026-09-05 / Step 056：恢复中断并建立个人远程基线
+
+- 关联工作：P0-00；用户指定 Git 作者 `yynil <yueyu.lin@me.com>` 并要求提交个人 repository。
+- 中断复核：上次权限请求中断后 Git 作者配置、commit 和 remote 均未写入；恢复后 GitHub CLI 身份为 yynil，目标仓库不存在。
+- 动作：仅在当前仓库配置作者，显式添加项目代码/schema/config/报告/小 fixture/图像，创建基线 `bd97830`；创建私有 `https://github.com/yynil/long_long_agent` 并 `git push -u origin main`，成功。
+- 检查：候选文件无私钥/GitHub token/AWS key 高置信标记；大数据、模型和 upstream worktree 未进入提交。`git diff --cached --check` 对已有 Markdown 两空格换行及 patch 原样上下文报 whitespace，保留其语义及既有 patch hash，未作无关改写。
+- 结果：P0-00 完成，后续运行记录此基线和增量 diff。远程推送不改变训练阶段。
+
+### 2026-09-05 / Step 057：落实上下文保护并修正许可字段
+
+- 关联工作：D-09、T-01/T-10；ADR-017。
+- 实现：保护初始/最近 user、system/developer 与最近 assistant 的完整 action/observation 组，按旧交互组删除历史；缺失 task_text 以零 loss 任务契约补回；受保护上下文超限即拒绝。
+- 修正：Open-SWE 数据卡明确 `license` 列是 repo SPDX，adapter 原先把它写进 source_license；现 source_license 保留数据集 CC-BY-4.0，repo_license 独立写入 metadata。四种 repo SPDX 计数为 MIT 43,339、Apache-2.0 32,700、BSD-3-Clause 6,768、BSD-2-Clause 1,259。
+- 验证：collator/adapter 测试 22 passed；新增缺失任务补回、超限拒绝、完整旧交互删除和多 observation 保留测试。training_data 配置/schema 升级 v2。
+- 环境/来源只读检查：本地 3090 Ti 空闲；远程 Docker 可用但仅有 wandb/hello-world 镜像。HF 元数据固定 SWE-rebench-V2 为 `475dd5e8703bb5fb22dd3c60b5d038b019eba1e0`，任务 Parquet 428,839,266 bytes；SWE-rebench 为 `89cdfbab4ab1bd8f5a658bb212d1b63624f4f881`。后续只下载必要任务元数据用于 base/env join，不加入新的训练轨迹池。
+- 下一步：A0 先使用已含可追溯 repo SPDX 的固定 Open-SWE 两教师组，包含 resolved/unresolved；D-09 内容索引覆盖全部五来源，质量准入仅对 A0 候选逐条验收。
+
+### 2026-09-05 / Step 058：固定任务元数据并完成五来源内容索引
+
+- 关联工作：D-09/D-10、P0-03；任务元数据仅用于 base commit/repo SPDX/环境 join，不扩展训练 trace 池。
+- 下载：`configs/evaluation_sources.yaml` 固定 SWE-rebench-V2 revision `475dd5e8703bb5fb22dd3c60b5d038b019eba1e0`；32,079 条任务，Parquet 428,839,266 bytes，SHA-256 `0e0bf9355f892ad74ae98d4e1c404f39fd6654a8e351ee3e6ab162e4a64cd3ad`；所有 LFS 文件实际 SHA 与 manifest 复核。
+- 命令：`.venv/bin/python -u scripts/build_contamination_index.py --output /home/yueyulin/data/long_long_agent/artifacts/data_audit/a0_pool_index_v1.sqlite`；全部五个固定来源共 432,695 行处理完成。
+- 结果：142,884 个任务指纹，缺失任务文本 0，完全相同任务跨 split 0；index SHA `b839e53b23dac41d425d296bde675bdc57f6348efccce55bb93e96ef0fced241`。索引只保存 hash/MinHash/shingle hash，不输出轨迹正文。
+- 边界：任务 5-word shingles、32 permutations/8 bands 的 LSH 是候选召回，准入时再验 Jaccard≥0.8；近重复召回是近似方法，不证明不存在全部近重复或基座预训练污染。候选外的 PII/secret 不在本次扫描声明范围内。
+- 产物：索引及邻接 manifest 在指定 data root；来源配置和复用入口在 Git。
+
+### 2026-09-05 / Step 059：实现 A0 准入并验证恢复机制
+
+- 关联工作：D-09/D-10、T-07；ADR-017。
+- 准入实现：版本化 closed schema 绑定 source/文件/任务元数据/held-out/index/config/实现 SHA；验证工具 schema、tool-call pairing、结果完整性、task/base/repo-license join、敏感内容规则、跨 split 文本和 trace、已选任务去重及受保护上下文。只记录隔离规则名和 record SHA。
+- 字段修复：仅一个 pending tool-call 时可恢复缺失 response ID，并记录推断规则；多调用歧义拒绝。最终单一 finish 是终止动作，不要求虚构 tool response。外部 schema 引用一律拒绝。
+- A0 冻结方案：train/dev/test=900/50/50 episodes，每个 split 两教师各半，每条 episode 选 10 个均匀分布的 decision，known outcome 必须可用；不足则不发布。旧 canonical 入口仅允许显式有限 preview，不能绕过质量准入。
+- 恢复实现：FP32 master、AdamW moments、模型、trainer counters、Python/NumPy/torch/CUDA RNG、sampler row/epoch/ownership 与六类 provenance SHA；原子且禁止覆盖。BF16 dropout toy 的下一步与 uninterrupted run 完全一致；config/sampler 变更拒绝。
+- 验证：首轮全仓 93 passed / 1 failed，失败原因是测试将 venv Python symlink resolve 为无 pyarrow 的解释器；修正测试启动路径后，定向 6 passed，全仓 94 passed（3.08 s），Ruff check/format 通过。checkpoint 目前仅为单进程机制证据，不宣称真实 GPU run/resume 或 DDP 已验收。
+- 环境：记录本地 56-package 精确 freeze `configs/requirements-train-cu130.txt`；尚未由新环境重建，P0-03 保持进行中。
+- 下一步：冻结实现 commit 后启动候选审计；通过后才构建 A0。同时准备 M-02 generation parity 的事前阈值与可执行环境镜像固定流程。

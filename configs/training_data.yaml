@@ -1,4 +1,4 @@
-schema_version: 1
+schema_version: 2
 
 tokenizer:
   implementation: src.training.tokenizer.RWKVByteTokenizer
@@ -35,10 +35,10 @@ loss:
 decision_windows:
   max_tokens: 16384
   current_assistant_only: true
-  history_policy: left_drop_at_message_boundaries
+  history_policy: protected_task_and_latest_exchange_v2
   retain_system_and_developer_messages: true
   overlong_current_decision_policy: reject
-  note: This is the independent-reset SFT path; stateful episode continuation is owned by M-03.
+  note: Protect task and latest exchange; drop complete old exchanges; reject protected-context overflow. Stateful continuation is owned by M-03.
 
 packing:
   implementation: src.training.episode_collator.PackedEpisodeCollator

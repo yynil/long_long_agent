@@ -251,21 +251,51 @@ def decision_message_indices(episode: NormalizedEpisode) -> tuple[int, ...]:
 def _decision_candidate(
     episode: NormalizedEpisode,
     target_index: int,
-    droppable_indices: tuple[int, ...],
+    droppable_groups: tuple[tuple[int, ...], ...],
     drop_count: int,
 ) -> NormalizedEpisode:
-    retained = set(droppable_indices[drop_count:])
+    removed = {index for group in droppable_groups[:drop_count] for index in group}
     messages = []
     for index, message in enumerate(episode.messages[: target_index + 1]):
-        if message.role in {"system", "developer"} or index == target_index or index in retained:
+        if index not in removed:
             if message.role == "assistant" and index != target_index:
                 message = replace(message, loss_mask=False)
             messages.append(message)
+    if episode.task_text.strip() and not any(
+        episode.task_text.strip() in message.content
+        for message in messages
+        if message.role in {"system", "developer", "user"}
+    ):
+        messages.insert(
+            0, NormalizedMessage(role="user", content=f"Task contract:\n{episode.task_text}")
+        )
     return replace(
         episode,
         source_record_id=f"{episode.source_record_id}/decision/{target_index}",
         messages=tuple(messages),
     )
+
+
+def removable_history_groups(
+    episode: NormalizedEpisode, target_index: int
+) -> tuple[tuple[int, ...], ...]:
+    """Keep task and latest observation; remove old assistant exchanges atomically."""
+    prefix = episode.messages[:target_index]
+    protected = {
+        index for index, message in enumerate(prefix) if message.role in {"system", "developer"}
+    }
+    users = [index for index, message in enumerate(prefix) if message.role == "user"]
+    if users:
+        protected.update((users[0], users[-1]))
+    assistants = [index for index, message in enumerate(prefix) if message.role == "assistant"]
+    latest_start = assistants[-1] if assistants else 0
+    protected.update(range(latest_start, target_index))
+    groups: list[list[int]] = []
+    for index, message in enumerate(prefix):
+        if not groups or message.role == "assistant":
+            groups.append([])
+        groups[-1].append(index)
+    return tuple(tuple(group) for group in groups if not protected.intersection(group))
 
 
 def tokenize_decision(
@@ -276,18 +306,14 @@ def tokenize_decision(
     max_tokens: int,
     config: EpisodeEncodingConfig | None = None,
 ) -> TokenizedDecision:
-    """Build one bounded decision sample, dropping history only at message boundaries."""
+    """Build a decision window with protected task and complete current observation."""
     if max_tokens <= 0:
         raise ValueError("max_tokens must be positive")
     eligible = decision_message_indices(episode)
     if message_index not in eligible:
         raise ValueError("message_index is not a supervised assistant decision")
     turn_id = eligible.index(message_index)
-    droppable = tuple(
-        index
-        for index, message in enumerate(episode.messages[:message_index])
-        if message.role not in {"system", "developer"}
-    )
+    droppable = removable_history_groups(episode, message_index)
     encoding = config or EpisodeEncodingConfig()
 
     def encode(drop_count: int) -> TokenizedEpisode:
@@ -300,7 +326,7 @@ def tokenize_decision(
     minimal = encode(len(droppable))
     if len(minimal.token_ids) - 1 > max_tokens:
         raise ValueError(
-            f"decision {turn_id} needs {len(minimal.token_ids) - 1} tokens without history, "
+            f"decision {turn_id} protected context needs {len(minimal.token_ids) - 1} tokens, "
             f"above max_tokens={max_tokens}"
         )
 
@@ -317,7 +343,8 @@ def tokenize_decision(
             lower = middle
     if upper != len(droppable):
         best = encode(upper)
-    return TokenizedDecision(turn_id, message_index, upper, best)
+    dropped_messages = sum(len(group) for group in droppable[:upper])
+    return TokenizedDecision(turn_id, message_index, dropped_messages, best)
 
 
 def tokenize_decisions(

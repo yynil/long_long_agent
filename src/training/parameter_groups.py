@@ -295,6 +295,9 @@ class FP32MasterAdamW:
 
         self.param_groups: list[dict[str, Any]] = []
         self._pairs: list[tuple[Any, Any]] = []
+        self._parameter_names = tuple(
+            name for group in plan.groups for name in group.parameter_names
+        )
         master_groups = []
         for group in plan.groups:
             model_parameters = list(group.parameters)
@@ -346,6 +349,46 @@ class FP32MasterAdamW:
             for model_parameter, master_parameter in self._pairs:
                 model_parameter.copy_(master_parameter)
         return result
+
+    def state_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": 1,
+            "parameter_names": self._parameter_names,
+            "master_weights": [master.detach().cpu().clone() for _, master in self._pairs],
+            "optimizer": self._optimizer.state_dict(),
+        }
+
+    def load_state_dict(self, state: dict[str, Any]) -> None:
+        import torch
+
+        if set(state) != {"schema_version", "parameter_names", "master_weights", "optimizer"}:
+            raise ValueError("unknown or missing FP32 optimizer checkpoint fields")
+        if state["schema_version"] != 1 or tuple(state["parameter_names"]) != self._parameter_names:
+            raise ValueError("FP32 optimizer checkpoint parameter identity mismatch")
+        masters = state["master_weights"]
+        if len(masters) != len(self._pairs):
+            raise ValueError("FP32 optimizer checkpoint parameter count mismatch")
+        for saved, (_, master) in zip(masters, self._pairs, strict=True):
+            if (
+                saved.shape != master.shape
+                or saved.dtype != torch.float32
+                or not torch.isfinite(saved).all()
+            ):
+                raise ValueError("invalid FP32 master checkpoint tensor")
+        saved_groups = state["optimizer"]["param_groups"]
+        if len(saved_groups) != len(self.param_groups) or any(
+            saved["group_name"] != current["group_name"]
+            or len(saved["params"]) != len(current["params"])
+            for saved, current in zip(saved_groups, self.param_groups, strict=True)
+        ):
+            raise ValueError("FP32 optimizer checkpoint groups mismatch")
+        self._optimizer.load_state_dict(state["optimizer"])
+        with torch.no_grad():
+            for saved, (model, master) in zip(masters, self._pairs, strict=True):
+                master.copy_(saved)
+                model.copy_(master)
+        for current, restored in zip(self.param_groups, self._optimizer.param_groups, strict=True):
+            current.update({key: value for key, value in restored.items() if key != "params"})
 
     @property
     def optimizer_state_dtypes(self) -> set[Any]:

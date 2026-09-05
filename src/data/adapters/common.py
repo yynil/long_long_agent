@@ -55,6 +55,7 @@ def normalize_openai_messages(value: Any) -> list[NormalizedMessage]:
     if not isinstance(parsed, list):
         raise TypeError("Expected a list of messages")
     normalized: list[NormalizedMessage] = []
+    pending_calls: list[str] = []
     for item in parsed:
         if not isinstance(item, dict):
             raise TypeError(f"Expected message mapping, got {type(item).__name__}")
@@ -69,6 +70,16 @@ def normalize_openai_messages(value: Any) -> list[NormalizedMessage]:
         inline_reasoning, visible = split_think(content_text)
         reasoning = str(explicit_reasoning or inline_reasoning)
         tool_calls = normalize_tool_calls(item.get("tool_calls"))
+        pairing = "source"
+        tool_call_id = item.get("tool_call_id")
+        if role == "assistant":
+            pending_calls = [call["id"] for call in tool_calls if call.get("id")]
+        elif role == "tool":
+            if not tool_call_id and len(pending_calls) == 1:
+                tool_call_id = pending_calls[0]
+                pairing = "inferred_single_pending_call_v1"
+            if tool_call_id in pending_calls:
+                pending_calls.remove(tool_call_id)
         action: Any | None = tool_calls or None
         visible_content = visible if had_inline_think else content_text
         if role == "assistant" and tool_calls and visible_content.strip():
@@ -80,9 +91,13 @@ def normalize_openai_messages(value: Any) -> list[NormalizedMessage]:
                 content=visible_content,
                 reasoning=reasoning,
                 action=action,
-                tool_call_id=item.get("tool_call_id"),
+                tool_call_id=tool_call_id,
                 loss_mask=item.get("mask"),
-                metadata={"source_role": source_role, "think": item.get("think")},
+                metadata={
+                    "source_role": source_role,
+                    "think": item.get("think"),
+                    "tool_pairing": pairing if role == "tool" else None,
+                },
             )
         )
     return normalized

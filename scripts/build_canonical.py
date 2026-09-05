@@ -106,6 +106,13 @@ def main() -> None:
         raise SystemExit("--batch-size must be positive")
     if args.input_pattern and not args.preview:
         raise SystemExit("--input-pattern is restricted to --preview conversions")
+    if not args.preview:
+        raise SystemExit(
+            "Production conversion requires audited admission; use scripts/build_a0_release.py. "
+            "This adapter development entrypoint only supports --preview --limit N."
+        )
+    if args.limit is None:
+        raise SystemExit("Adapter previews require an explicit --limit")
     heldout_manifest = REPO_ROOT / "data/heldout/manifest.yaml"
     if not args.preview and not heldout_manifest.is_file():
         raise SystemExit(

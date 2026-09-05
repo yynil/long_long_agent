@@ -35,7 +35,7 @@ def adapt_open_swe_traces(
     return NormalizedEpisode(
         source_dataset="nvidia/Open-SWE-Traces",
         source_revision=source_revision,
-        source_license=str(row.get("license") or source_license),
+        source_license=source_license,
         source_record_id=str(row.get("trajectory_id") or row.get("instance_id")),
         task_id=str(row.get("instance_id")),
         task_text=first_task_message(messages),
@@ -47,6 +47,7 @@ def adapt_open_swe_traces(
         success=success,
         failure_type="unresolved" if success is False else None,
         metadata={
+            "repo_license": row.get("license"),
             "language": row.get("language"),
             "dataset_name": dataset_name,
             "source_file": source_file,

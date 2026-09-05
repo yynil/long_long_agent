@@ -6,7 +6,7 @@
   "additionalProperties": false,
   "required": ["schema_version", "tokenizer", "serialization", "loss", "decision_windows", "packing"],
   "properties": {
-    "schema_version": {"const": 1},
+    "schema_version": {"const": 2},
     "tokenizer": {
       "type": "object",
       "additionalProperties": false,
@@ -97,7 +97,7 @@
       "properties": {
         "max_tokens": {"type": "integer", "minimum": 16, "multipleOf": 16},
         "current_assistant_only": {"const": true},
-        "history_policy": {"const": "left_drop_at_message_boundaries"},
+        "history_policy": {"const": "protected_task_and_latest_exchange_v2"},
         "retain_system_and_developer_messages": {"const": true},
         "overlong_current_decision_policy": {"const": "reject"},
         "note": {"type": "string", "minLength": 1}

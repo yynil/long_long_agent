@@ -1,0 +1,13 @@
+schema_version: 1
+storage_config: configs/storage.yaml
+sources:
+  - source_id: swe_rebench_v2_tasks
+    repo_id: nebius/SWE-rebench-V2
+    repo_type: dataset
+    revision: 475dd5e8703bb5fb22dd3c60b5d038b019eba1e0
+    declared_license: cc-by-4.0
+    expected_lfs_bytes: 428839266
+    allow_patterns: [README.md, LICENSE, data/train-00000-of-00001.parquet]
+    adapter: executable_task_metadata
+    stage: M0
+    selection_note: Metadata for task/base/environment joins only; not a training trajectory source.
