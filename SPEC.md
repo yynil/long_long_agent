@@ -998,3 +998,13 @@ Sprint 0 结束定义：G0 全部满足，且能够用一个极小的 synthetic 
 - 验证：首轮全仓 93 passed / 1 failed，失败原因是测试将 venv Python symlink resolve 为无 pyarrow 的解释器；修正测试启动路径后，定向 6 passed，全仓 94 passed（3.08 s），Ruff check/format 通过。checkpoint 目前仅为单进程机制证据，不宣称真实 GPU run/resume 或 DDP 已验收。
 - 环境：记录本地 56-package 精确 freeze `configs/requirements-train-cu130.txt`；尚未由新环境重建，P0-03 保持进行中。
 - 下一步：冻结实现 commit 后启动候选审计；通过后才构建 A0。同时准备 M-02 generation parity 的事前阈值与可执行环境镜像固定流程。
+
+### 2026-09-05 / Step 060：启动 A0 审计并事前冻结 generation parity
+
+- 关联工作：D-09/D-10、M-02/M-08；输入实现 commit `f51ceb5` 已推送个人私有仓库。
+- A0 命令：`.venv/bin/python -u scripts/build_a0_release.py audit --index /home/yueyulin/data/long_long_agent/artifacts/data_audit/a0_pool_index_v1.sqlite --admission /home/yueyulin/data/long_long_agent/artifacts/data_audit/a0_admission_v1.json`；当前运行中，不改动参与 admission hash 的 data/tokenizer/collator 实现。
+- 生成预登记：`configs/generation_parity.yaml` 及 closed JSON schema。0.4B、1.5B 各 3 个固定 seed × 16/32/64/128 token，使用三种公开合成代码任务提示，比较官方 full-sequence、stateful prefill 和单 token RNN 的完整同词表分布；每个 case 的 logits relative RMS≤0.02、mean KL≤0.002 nats、p95 KL≤0.01、top-1 agreement≥0.95、finite；K=0 及重复贪心生成必须完全一致。
+- 阈值时序：本条记录与配置在本轮 GPU parity 实验前冻结，不沿用旧诊断事后放宽的 6%。本检查只覆盖短窗工程一致性，不取代长程 G1/G3 行为证据。任何失败保留全部 case，不改阈值后宣称原实验通过。
+- 实现：共享 runtime 重建临时 Git index，逐个应用固定 hash patch，再逐字节验证运行 worktree；只使用固定 checkpoint/tokenizer。生成限制 token/time、屏蔽未定义 token、处理 EOD/UTF-8、固定 sampling seed，不导出生成 fast state 为 slow commit。
+- 只读检查失败：直接把多份 reverse patch 传给 `git apply --reverse --check` 不能正确复原重叠 model.py hunk，未改 worktree；改为从 pinned tree 顺序正向重建 index 的验证方式。
+- 环境计划：SWE-rebench-V2 harness HEAD 固定为 `c71902a8cf8d2b725f63d51f199f4d3e56f68d2d`（只读 ls-remote）。本机 bwrap namespace smoke 成功，拟用 skopeo/umoci 将 OCI 镜像放在指定 data root；尚未下载/运行任何任务镜像。依据官方仓库文档 https://github.com/containers/skopeo、https://github.com/opencontainers/umoci 和 https://github.com/SWE-rebench/SWE-rebench-V2，后续核对工具版本、镜像 digest 与 verifier。

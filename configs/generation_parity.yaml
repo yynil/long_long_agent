@@ -1,0 +1,14 @@
+schema_version: 1
+roles: [smoke, local_v0]
+seeds: [20260905, 20260906, 20260907]
+prefix_lengths: [16, 32, 64, 128]
+generation_tokens: 16
+thresholds:
+  relative_rms_max: 0.02
+  mean_kl_max: 0.002
+  p95_kl_max: 0.01
+  top1_agreement_min: 0.95
+  k0_identical: true
+  repeated_generation_identical: true
+  finite_logits: true
+failure_policy: save_all_results_and_block_long_training_and_m0
