@@ -36,6 +36,7 @@ flowchart TD
 | 恢复独立确认 | [ADR-020 GPU恢复三层确认](reports/gpu_resume_confirmation.md) | 保存/加载exact、固定梯度重放、原生反向噪声预算；保留原strict失败 |
 | 真实过拟合训练 | [A0容量与32/128 overfit](reports/real_a0_overfit.md) | 最长监督目标容量、padded计时、完整真实任务训练曲线与阶段门 |
 | SFT完整输入 | [A0逐决策SFT数据报告](reports/a0_sft_inputs.md) | 完整A0准入/排除账、train/dev/test token格式、独立验证与来源边界 |
+| SFT训练与验证 | [0.4B完整A0单epoch](reports/a0_full_sft.md) | tmux GPU训练、全dev验证、checkpoint、停止线与时间预算；不是G1/G2 |
 | 资源与版本 | [硬件环境](reports/environment.md)、[上游版本盘点](reports/upstream_inventory.md)、[本机环境重建](README.md) | 固定模型/代码/依赖、资源与运行入口 |
 | 项目审查 | [2026-09-05 进展审查](reports/project_progress_review_2026-09-05.md) | 当时的目标、亮点、风险与路线建议；后续状态以 SPEC 为准 |
 

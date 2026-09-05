@@ -19,6 +19,8 @@
 
 因此可以继续使用 A0 的 **train split 做小规模工程验收**，不能把全部 432,695 行直接当作已清洗训练集，也不能把数据就绪等同于训练/G1 已通过。
 
+最新进展：完整A0全部10,000 decisions已完成SFT去向登记及独立来源/格式验证；成功来源且8K可编码的train3329/dev186/test183已就绪，失败来源与超长必要上下文另列排除账。详细统计、schema和hash见[独立SFT数据报告](a0_sft_inputs.md)，实际GPU作业见[0.4B SFT训练报告](a0_full_sft.md)。本页不重复训练曲线，也不扩大下载池准入结论。
+
 ```mermaid
 flowchart TD
     RAW[五来源：77 shards / 432695 行] --> FILES[固定 revision / 文件 SHA / 结构审计]

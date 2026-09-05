@@ -2,9 +2,9 @@
   "schema_version": 1,
   "purpose": "adr020_resume_confirmation_summary",
   "date": "2026-09-05",
-  "native_confirmation_passed": false,
+  "native_confirmation_passed": true,
   "fixed_gradient_mechanism_exact": true,
-  "full_32_128_overfit_executed": false,
+  "full_32_128_overfit_executed": true,
   "g1_passed": false,
   "confirmation_config_sha256": "5e04fb87d2782494a4669073cfee4000c8e494cbcee062c1a26733997ad6bd5d",
   "diagnostic_config_sha256": "ad18735ada533b88c07ae50aecaa8586fd3352b4ec7e5e8e1153a5f0ecfbcbbe",
@@ -32,7 +32,10 @@
       "active_gradient_elements": 450767872,
       "max_gradient_abs": 0.000030517578125,
       "max_gradient_relative_l2": 0.000145823091905175,
-      "failed_checks": ["max_abs", "unexpected_parameter_family"],
+      "failed_checks": [
+        "max_abs",
+        "unexpected_parameter_family"
+      ],
       "manifest_sha256": "7e4a68ea1bced1bd43994d3731931af901dd571aeaf4fecf6b6cab9e36fd84bf",
       "result_sha256": "6f9472286a49674fface9c043a650e34267ad3f7caf164c1146df619f0f8c533"
     },
@@ -49,7 +52,11 @@
       "gradient_norm": 47.75,
       "update_seconds": 1.2545384471304715,
       "peak_allocated_bytes": 20335908864,
-      "inactive_gradient_parameters": ["blocks.0.att.v1", "blocks.0.att.v2", "blocks.0.att.v0"],
+      "inactive_gradient_parameters": [
+        "blocks.0.att.v1",
+        "blocks.0.att.v2",
+        "blocks.0.att.v0"
+      ],
       "gradient_file_sha256": "b7a52ec6c197e4842d5f31346196d20f054b2742148113baf39b8378beba71ff",
       "manifest_sha256": "f5afcf19e4e73f0c98f49bb3b8d7c4b047343de29dd26cc28eaf2accb4ef4b19",
       "result_sha256": "0de114595ef02e9117d17587cf6c4d3e57feb915af09c65fda87ebd7336c2091"
@@ -70,11 +77,88 @@
       "trainer_and_sampler_not_advanced": true,
       "manifest_sha256": "30f114c6819fa96db4c57c4c7a2c82f1d4c888ecfa633da283f67eb21f72d171",
       "result_sha256": "59137d07cbd975bad51ddac2886066a9dfba2c96e8f099ed99ca67779655eecd"
+    },
+    {
+      "directory": "adr021_scaled_v1/reference",
+      "code_commit": "c83be25dea48548e18308f4edbcb9d7d1e0b80bf",
+      "status": "passed",
+      "stage": "complete",
+      "config_sha256": "3207610b5f610476441d23c4c863644d82f0e5225b1cf84e1e3b2d48afeef900",
+      "result_sha256": "e183bd2d87a3e5a7ca21b9e7007d39bc7f3f658353ad31a8ff5a2bab0cc0ead4",
+      "manifest_sha256": "93368b6f80164b55ef37319a27385c241a3b32fc4d2dd2e1bbf8c52e44eb8fe7",
+      "failures": [],
+      "completed_control_backwards": 3
+    },
+    {
+      "directory": "adr021_scaled_v1/fixed",
+      "code_commit": "c83be25dea48548e18308f4edbcb9d7d1e0b80bf",
+      "status": "passed",
+      "stage": "complete",
+      "config_sha256": "3207610b5f610476441d23c4c863644d82f0e5225b1cf84e1e3b2d48afeef900",
+      "result_sha256": "c011df2daa39548eecf3a6e8373ec7eb9a24f64dd826664e699533cbe7a878a3",
+      "manifest_sha256": "b664ddcb64360e6a920d71dcdeb3c989d67e44da089f709fa95e455239781d81",
+      "failures": []
+    },
+    {
+      "directory": "adr021_scaled_v1/native",
+      "code_commit": "c83be25dea48548e18308f4edbcb9d7d1e0b80bf",
+      "status": "passed",
+      "stage": "complete",
+      "config_sha256": "3207610b5f610476441d23c4c863644d82f0e5225b1cf84e1e3b2d48afeef900",
+      "result_sha256": "c97b4a6d71f44f4659c8f78b90153cc9c0baefff28d4b8ed22f338e9a8d653cb",
+      "manifest_sha256": "9e479387c54f8f411f190a2a5929f0b8b7bc964e0a3ee31e49f80c6f5b530226",
+      "failures": [],
+      "gradient_comparison": {
+        "different_elements": 68,
+        "different_tensors": 61,
+        "elements": 450767872,
+        "max_abs": 9.5367431640625e-7,
+        "max_scaled_abs": 0.012451834301502526,
+        "relative_l2": 0.0003891200074686998,
+        "tensors": 795
+      },
+      "optimizer_comparison": {
+        "exp_avg": {
+          "different_elements": 68,
+          "different_tensors": 61,
+          "elements": 450767872,
+          "max_abs": 9.536779543850571e-8,
+          "max_scaled_abs": 0.008860930245711605,
+          "relative_l2": 0.00027690420247360956,
+          "tensors": 795
+        },
+        "exp_avg_sq": {
+          "different_elements": 51,
+          "different_tensors": 47,
+          "elements": 450767872,
+          "max_abs": 4.5565773376665675e-12,
+          "max_scaled_abs": 0.01948617067256102,
+          "relative_l2": 0.0006089428335176029,
+          "tensors": 795
+        },
+        "failed_checks": [],
+        "master": {
+          "different_elements": 23,
+          "different_tensors": 23,
+          "elements": 450834432,
+          "max_abs": 5.960464477539063e-8,
+          "max_scaled_abs": 2.1107334016098329e-7,
+          "relative_l2": 6.596041880030728e-9,
+          "tensors": 798
+        },
+        "parameters_without_moments": [
+          "blocks.0.att.v0",
+          "blocks.0.att.v1",
+          "blocks.0.att.v2"
+        ]
+      }
     }
   ],
   "limitations": [
-    "Both fixed-gradient diagnostic processes load the same source point; no claim of native-backward exactness.",
-    "Old exact and independent native-budget failures remain failed; no retrospective threshold change.",
-    "Local SM86 0.4B only; worst supervision length, padded timing, full overfit, SM89/DDP and Agent outcomes remain unverified."
-  ]
+    "Old exact and v1 native-budget failures remain failed; v2 was preregistered on new train tasks.",
+    "Local SM86 0.4B bounded native recovery only; not a guarantee of long-run or SM89/DDP numerical identity.",
+    "Real 32/128 overfit and complete A0 capacity passed in separate reports; Agent outcomes and G1 remain unverified."
+  ],
+  "v1_native_confirmation_passed": false,
+  "v2_confirmation_config_sha256": "3207610b5f610476441d23c4c863644d82f0e5225b1cf84e1e3b2d48afeef900"
 }

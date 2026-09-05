@@ -1,6 +1,6 @@
 # GPU 恢复三层独立确认（ADR-020）
 
-日期：2026-09-05。状态：**固定梯度恢复机制逐位一致；独立原生确认仍失败**。新任务无恢复对照超过冻结预算，未放行较长训练；[机器汇总与原始报告SHA](gpu_resume_confirmation_summary.json)保留全部运行及失败。
+日期：2026-09-05。状态：**固定梯度机制exact，独立原生v2确认通过**；旧strict/v1预算失败不改写。下文1～6节保留旧协议及当时结论，v2事前协议和新结果见7～8节；[机器汇总与原始报告SHA](gpu_resume_confirmation_summary.json)保留全部运行及失败。
 
 [统一入口](../rwkv7_agent_only_data_training_plan_zh.md) · [原预检与失败证据](real_a0_training_preflight.md) · [执行台账](../SPEC.md)
 
@@ -93,3 +93,18 @@ capture更新6643 input /393 loss tokens，loss0.3693450689、norm47.75、1.255s
 gradient与两类FP32 moment同时满足每张量relative-L2≤1e-3、`max_abs / max(reference RMS,1e-30)`≤0.03125。后者为4×BF16 epsilon的**张量尺度归一化限制，不是逐元素4 ULP保证**。梯度还需符合3×无恢复对照包络，normalized-abs/relative-L2 floor为0.001953125/1e-4。原子归约参数族补齐源码的att.r_k；FP32 master仍max-abs≤2e-7且relative-L2≤1e-6，模型、计数、RNG、加载点、固定梯度optimizer及前后loss仍exact。资源限制和失败停止机制不变。
 
 两种config/manifest使用独立闭合schema，程序按明确版本派发；v2 schema同时固定数值，拒绝运行时悄悄调大阈值。此门在新GPU结果前登记，仅允许后续本机工程推进，不取代G1或数据准入。
+
+## 8. v2独立结果：通过，不重判旧失败
+
+固定 `c83be25`，`adr021_scaled_v1/reference|fixed|native` 三个独立进程均passed。3次无更新对照全部通过且状态未突变；保存/加载、固定梯度optimizer模型/master/moments/RNG逐位一致。native恢复后的模型、trainer/sampler/RNG、全部非计时指标及更新后loss exact，微小gradient与FP32 optimizer差值符合事前双预算及无恢复包络。
+
+| 对象 | 不同元素 / 总元素 | max-abs | max-abs/reference RMS | 最大逐张量relative-L2 |
+|---|---:|---:|---:|---:|
+| gradient | 68 / 450,767,872 | 9.53674e-7 | 0.0124518 | 0.000389120 |
+| FP32 master | 23 / 450,834,432 | 5.96046e-8 | 2.11073e-7 | 6.59604e-9 |
+| exp_avg | 68 / 450,767,872 | 9.53678e-8 | 0.00886093 | 0.000276904 |
+| exp_avg_sq | 51 / 450,767,872 | 4.55658e-12 | 0.0194862 | 0.000608943 |
+
+各列最大值可能来自不同参数，不是单张量向量。原始报告保留全部差异张量（gradient/avg为61，avg_sq为47，master为23），合法首层None列表不变。native真实6419 input/722 loss tokens，loss0.9234439731，preclip norm38.5，更新后同输入loss0.8461532593。
+
+此后[真实32/128 overfit与容量](real_a0_overfit.md)已独立通过；它们不是原生恢复报告的推论。完整SFT实际进度见[独立训练报告](a0_full_sft.md)。任何长作业误差保证、远程SM89/DDP和G1仍须独立证据。

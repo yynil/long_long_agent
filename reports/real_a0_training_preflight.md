@@ -1,6 +1,6 @@
 # 真实 A0 训练预检与 GPU 恢复验证
 
-日期：2026-09-05。当前状态：真实两步全参数更新通过；checkpoint加载逐值一致，下一步优化器严格指纹门未通过；已在不重复恢复的对照中确认原生反向梯度波动。不是32/128 overfit完成报告。
+日期：2026-09-05。本报告保留当时结果：真实两步更新通过、旧下一步optimizer严格指纹失败。后续[原生v2独立确认](gpu_resume_confirmation.md)和[真实32/128过拟合](real_a0_overfit.md)已另行通过，不改写本报告旧strict失败。
 
 [统一入口](../rwkv7_agent_only_data_training_plan_zh.md) · [数据范围](data_status_report.md) · [A0 输入计划](a0_release_assessment.md)
 
@@ -75,6 +75,6 @@ CPU比较连续与恢复的 `step2.pt`（`torch.load(weights_only=True)`）：
 
 ## 5. 下一步，不静默改门
 
-Step088时在SPEC登记ADR-020提议：保持保存/加载本身逐值一致；补充固定同一梯度的GPU optimizer续步对照，隔离checkpoint机制；原生下一步则需与不经过恢复的重复运行波动比较，并在独立确认前冻结新数值预算。Step089用户继续后接受该框架，后续协议与结果另见[三层独立确认报告](gpu_resume_confirmation.md)，不改写本报告旧strict失败。padded对照和完整32/128 overfit仍未启动。
+Step088时在SPEC登记ADR-020提议：保持保存/加载本身逐值一致；补充固定同一梯度的GPU optimizer续步对照，隔离checkpoint机制；原生下一步则需与不经过恢复的重复运行波动比较，并在独立确认前冻结新数值预算。Step089用户继续后接受该框架，后续协议与结果另见[三层独立确认报告](gpu_resume_confirmation.md)，不改写本报告旧strict失败。当时padded对照和完整32/128 overfit尚未启动；新结果另见上述独立报告。
 
 不为追求hash相同改动官方CUDA，也不直接切换dtype、缩短保护上下文或扩大训练。真实32/128还须覆盖较长监督目标和多个任务，再估算完整训练预算。

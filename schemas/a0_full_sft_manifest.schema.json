@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://long-long-agent.local/a0_full_sft_manifest.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "purpose",
+    "code_commit",
+    "dirty_diff_sha256",
+    "provenance",
+    "runtime",
+    "environment",
+    "command",
+    "resolved_config",
+    "base_config",
+    "plan",
+    "dev_sample_ids_sha256"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "purpose": {
+      "const": "a0_single_epoch_sft"
+    },
+    "code_commit": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40}$"
+    },
+    "dirty_diff_sha256": {
+      "const": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "provenance": {
+      "$ref": "training_preflight_manifest.schema.json#/properties/provenance"
+    },
+    "runtime": {
+      "$ref": "training_preflight_manifest.schema.json#/properties/runtime"
+    },
+    "environment": {
+      "$ref": "training_preflight_manifest.schema.json#/properties/environment"
+    },
+    "command": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "resolved_config": {
+      "$ref": "a0_full_sft.schema.json"
+    },
+    "base_config": {
+      "$ref": "a0_training_preflight.schema.json"
+    },
+    "plan": {
+      "$ref": "a0_sft_capacity_manifest.schema.json#/properties/plan"
+    },
+    "dev_sample_ids_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}

@@ -2,7 +2,7 @@
 
 目标是在同一套纯 RWKV-7 权重上，把环境历史保存在 slow state，把当前决策的可变深度计算放在 fast state，最终用真实可执行任务验证 single-trajectory 成功率与端到端成本。
 
-这还是研究工程项目，**尚未证明 latent thinking 有 Agent 收益**。当前正式训练为 No-Go；具体状态、失败记录和后续阶段门以 [SPEC.md](SPEC.md) 为准。
+这还是研究工程项目，**尚未证明 latent thinking 有 Agent 收益**。本机0.4B恢复、真实32/128过拟合及完整A0输入/容量已通过，当前推进受限单epoch [SFT与dev验证](reports/a0_full_sft.md)；G1前不启动规模化paired/M2。具体状态、失败记录和后续阶段门以 [SPEC.md](SPEC.md) 为准。
 
 ```mermaid
 flowchart LR

@@ -250,7 +250,7 @@ artifacts/models/<run_id>/
 | P0-03 | 建立 Python/CUDA 依赖锁 | lockfile + 容器定义 | 新环境可完成最小前向 | 进行中：66包distribution hash锁、新环境重建/105项测试/全新CUDA cache前向通过；远程环境待建 |
 | P0-04 | 冻结 held-out 边界 | `data/heldout/*.txt` | 分组规则与污染测试就绪 | 完成：五来源 42,982 group 的 repo/task 90/5/5 hash split、列表校验与 canonical v1.1 接入通过 |
 | P0-05 | 固化数据、训练、评测配置 schema | `schemas/` | CI 可校验所有配置 | 进行中：source registry 与四表 schema 已建立 |
-| P0-06 | 建立跨文档架构图审计基线 | 全部 Markdown 文档；`docs/diagrams/*.png` | 每份文档有精确 Mermaid 图；模型有从系统到源码符号的手绘图并完成链接/图像校验 | 完成：24份文档/24个Mermaid/122个本地链接通过（Step095）；5张手绘图沿用既有视觉、尺寸与hash验收 |
+| P0-06 | 建立跨文档架构图审计基线 | 全部 Markdown 文档；`docs/diagrams/*.png` | 每份文档有精确 Mermaid 图；模型有从系统到源码符号的手绘图并完成链接/图像校验 | 完成：27份文档/27个Mermaid/160个本地链接通过（Step106）；5张手绘图沿用既有视觉、尺寸与hash验收 |
 
 #### 已确认的资源分工
 
@@ -407,6 +407,8 @@ Sprint 0 结束定义：G0 全部满足，且能够用一个极小的 synthetic 
 | ADR-020 | 2026-09-05 | T-07区分逐值保存/加载、固定梯度optimizer续步和原生反向噪声下的续步验收；新数值预算须在独立确认前冻结，保留原exact失败 | Step087～088：恢复点全部exact；无再次恢复的3次反向仍有微小梯度波动，相关官方归约使用FP32 atomicAdd再转BF16 | 已接受框架（Step089）；Step094固定梯度机制exact，但独立原生预算门failed，后续新预算须重新事前登记；不放行overfit |
 | ADR-021 | 2026-09-05 | ADR-020新增v2尺度归一化工程验收：gradient/moment误差同时限制逐张量relative-L2及max-abs/RMS；保存加载/固定梯度/模型/计数仍exact，旧配置与失败保留 | Step092的absolute上限不能跨梯度尺度迁移；Step094机制exact，源码已涵盖r_k原子归约 | 已接受窄范围推进：用户要求继续尽快进入SFT且既有BF16原因授权有效；具体v2配置必须在新任务GPU前冻结，失败不放行 |
 | ADR-022 | 2026-09-05 | 完整A0 SFT输入准备逐条覆盖全部准入decision的去向：source_success=true才作为首版SFT正例，失败轨迹单独记录等待验证recovery；保持train/dev/test严格分离，8K保护上下文溢出拒绝 | 不把工程overfit中的失败动作自动视为正确监督，且不能把全下载池等同于合格训练集 | 已接受数据准备子范围：用户要求推进完整SFT；不改变canonical release、不自动放行正式训练或G1 |
+
+| ADR-023 | 2026-09-05 | 首次完整数据SFT限定为已验证A0成功来源train的单epoch、本机0.4B；提前做全dev teacher-forced验证，不等待Agent loop完工；后续仍在同checkpoint上跑M0四基线 | 用户明确要求尽快进入完整SFT/验证；与ADR-018先做开发环境pilot的默认顺序不同，故显式登记为受限工程SFT，不据此放行G1/G2或扩源/M2 | 已接受用户本轮SFT执行范围：恢复、真实32/128及全train容量均须先passed；仅1 epoch与冻结dev停止线，无latent、test调参、远程或长期作业自动续训 |
 
 ## 12. 执行日志
 
@@ -1371,3 +1373,23 @@ Sprint 0 结束定义：G0 全部满足，且能够用一个极小的 synthetic 
 - 容量配置SHA `46457678c83cb6272bce45e4c3ea7feb3206c175c54b89d60ab425fa7b26c0f7`，固定overfit128 result SHA `ae26daaec286f3999724c6b0c07cf3f2c611381d8a9b8f1c2595e62ef8108cb6`。新增闭合config/manifest及薄入口，按Step102完整packed row选择，运行前提交。首次CPU测试误引用不存在fixture失败，已改成自包含合成runtime envelope；不依赖本地大产物或GPU。
 - 验证：全仓151 tests通过（4.81s），Ruff check/format通过（137文件），diff通过；新增3项覆盖多sample packed row的总监督最坏值、完整且确定的sample覆盖、空/重复/超长拒绝和闭合配置/manifest往返。输入导出异常路径显式恢复failed状态，避免manifest写出失败仍显示built；不影响已验证构建产物。
 - 执行：同固定重建环境/LM/CUDA/build，干净提交后运行 `scripts/validate_a0_sft_capacity.py`，输出 `<data root>/artifacts/real_sft/a0_complete_capacity_v1`。不自动扩大至正式SFT或latent；容量失败按停止线保存，全部历史权重和失败原件保留。
+
+### 2026-09-05 / Step 104：完整容量通过，冻结单epoch A0 SFT与全dev验证
+
+- 关联工作：T-05/T-07/T-08/M-08，ADR-023。固定 `cbbe4a1` 完整train计划3329 rows/3329 samples，24,082,820真实tokens、24,107,760对齐tokens，plan SHA `0e6d2aab713071619ca6d6fc754d8b69629ada6024a27f693fe6f635e244222e`。最坏row616为8007 input/3107 loss tokens，尾补8192；两步loss0.600104→0.576844、norm42.5/25.375，峰值23,406,879,232 bytes，均passed，完整checkpoint保存；result SHA `9bf4cb45bf1eddd634632b43abd9ec707acc0dfc8abad02bd2ad8e61c9b8990c`。
+- 单epoch协议（训练前登记）：使用固定原始0.4B基座重新初始化，不从overfit或容量checkpoint开始；只读已独立verified的train3329和dev186，不加载test。seed20260909，LR3e-6/官方分组/FP32-master/BF16/assistant-only loss不变，epoch0的packed plan必须与容量plan一致；恰覆盖全部3329训练decisions一次，不补采样。
+- 验证/停止：训练前、每512 rows及末尾全dev teacher-forced CE，保留每row ID hash、weight/loss分母与分位数；不含自由生成工具执行结论。中间或末轮dev CE高于initial×1.25即停止，末轮要求不高于initial才标记本次SFT工程验证passed；这是此作业事前工程门，不是G1/G2阈值。逐stepfinite/资源线沿用preflight。每512 rows和末尾保存完整model/master/moments/trainer/sampler/RNG；任何失败停止且不自动重试/升epoch，失败checkpoint与日志保留。
+- 范围变更明确：这比ADR-018默认顺序先进入受限SFT，依据用户本轮明确要求记录ADR-023；不把dev loss当真实Agent改善，G1仍是paired/M2前置。入口只提供此单epoch作业，后续需要先核对验证结果和补Agent loop/开发pilot，不自动扩到全下载池、长epoch或latent训练。
+
+### 2026-09-05 / Step 105：SFT启动前验证及用户指定tmux / 0.4B
+
+- 关联工作：T-05/T-07/T-08/P0-03；用户追加明确要求以tmux启动GPU SFT和验证，只用0.4B，不使用本机无法训练的更大模型，并提供时间估计。确认沿用固定smoke角色0.4B；没有切换至1.5B或其他更大基座。
+- 入口/配置：`scripts/run_a0_full_sft.py` / `configs/a0_full_sft.yaml`，配置SHA `e5272ad3cc21ab08dadd860a047c6c7bf9962f31bf9b2b34857e757904231022`；source/cache/capacity SHA和单epoch/dev阈值闭合固定。154 tests通过（4.75s）、Ruff check/format通过（140文件）、diff通过；3项新增包含scope/阈值拒绝、dev完整分母/末轮不回退判定以及CPU真实更新/全量dev/checkpoint/hash的完整入口测试。使用实际capacity envelope离线验证新manifest引用与schema，passed。
+- tmux只读检查：系统未安装，APT候选3.6a-2ubuntu0.1，deb SHA `c1df283beedf7c554a441d5b34e5801f3494fea1809c8c03917a5ff87a856e71`。按用户明确tmux要求，在data root受控tools目录局部解包固定发行版包；不修改训练Python锁、模型CUDA路径或安装更大模型。下载/解包hash、依赖检查与会话命令下一条记录。
+- 预计时长：真实overfit约6200 input tokens/s；完整train24,082,820 tokens约65分钟纯更新，加初始/每512/末尾全dev、checkpoint和加载，预估70～90分钟；不是保证。启动后用首批GPU测量复核，长作业状态按tmux、metrics与最终result核对，不提前写passed。
+
+### 2026-09-05 / Step 106：tmux局部依赖就绪与SFT交付前复核
+
+- 关联工作：P0-03/P0-06/T-05/T-07；第一次APT下载因既有代理格式无效失败，未安装。仅本次下载进程清除代理并使用APT DIRECT，固定deb下载及SHA校验通过，解包到 `<data root>/tools/tmux-3.6a`；未修改系统包或训练Python环境。所有动态库可解析，包版本3.6a-2ubuntu0.1，binary自报tmux3.6，binary SHA `3bdeba4db61fa25e569e5d1ca6466acfd193018c7bbc2bc924ec415ffa0c2e58`。
+- 文档复核：27份Markdown/27个Mermaid/160个本地链接通过；新增独立SFT训练报告，统一入口仅导航。恢复报告增加v2 passed实测分母，保留旧strict/v1失败；数据报告保留A0与全下载池边界，不混入训练曲线。前述154 tests和离线真实manifest schema通过。
+- GPU启动前：3090 Ti 0/24564MiB；SFT输出目录和launch log均不存在，确认模型角色smoke即固定0.4B。计划提交隔离worktree后以fast-forward整合回干净main（真实overfit和capacity进程均已退出），tmux会话 `rwkv-a0-sft-04b-v1`，显式 `CUDA_VISIBLE_DEVICES=0`，固定训练Python/CUDA/LM/kernel/build；bash pipefail+tee同时保留终端和独立launch log。最终状态/elapsed/首批指标下一条补记，不把尚未启动作业记为完成。
