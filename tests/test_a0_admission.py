@@ -67,3 +67,17 @@ def test_source_manifest_existence_does_not_substitute_for_content_hash(tmp_path
             },
             tmp_path,
         )
+
+
+def test_all_canonical_schemas_survive_strict_parquet_round_trip(tmp_path):
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    from src.data.schemas import TABLE_SCHEMAS
+
+    for name, schema in TABLE_SCHEMAS.items():
+        path = tmp_path / (name + ".parquet")
+        pq.write_table(
+            pa.Table.from_pylist([], schema=schema), path, use_compliant_nested_type=False
+        )
+        assert pq.read_schema(path).equals(schema, check_metadata=True)

@@ -388,6 +388,7 @@ def build_release(config_path: Path, admission_path: Path, index_path: Path) -> 
             pa.Table.from_pylist(rows[table], schema=schema),
             temporary / filename,
             compression="zstd",
+            use_compliant_nested_type=False,
         )
         files[filename] = sha256_file(temporary / filename)
     (temporary / "splits").mkdir()

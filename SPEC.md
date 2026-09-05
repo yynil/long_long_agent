@@ -1050,3 +1050,12 @@ Sprint 0 结束定义：G0 全部满足，且能够用一个极小的 synthetic 
 - fixture v2：buggy 1/1目标测试失败、65/65既有测试通过、missing=0/regression=0，10.35 s；gold 1/1目标和65/65既有测试通过、官方exact passed-set匹配、exit0，10.27 s。结果 `artifacts/environment_fixture_flake8_179_v2.json`（data root）。未把gold补丁当模型输出，也没有向任何Agent暴露验证目录。
 - 额外边界测试：host home/SSH socket/验证目录不可见，网络namespace与host不同，`/etc`写入拒绝；100KB输出在1KB限额下中止；sleep10在2s RuntimeMax下2.23s退出。所有namespace/cgroup保护保持开启。
 - 状态：环境与verifier的最小链路通过，T-04仍未完成；M-02阻塞，ADR-019仍为提议。A0审计继续按原准入规则运行。
+
+### 2026-09-05 / Step 065：A0候选准入通过，首次构建被严格schema验收拒绝
+
+- 关联工作：D-09/D-10；输入admission实现从d674bce冻结，运行结束commit为1a6c200（data/tokenizer/collator未变化）。
+- 审计v2：扫描6,236条，1,000条通过；train/dev/test=900/50/50，各split两教师均分，总MiniMax/Qwen=500/500；success399/failure601。拒绝规则可重叠：unknown outcome1497、email2634、credential URL39、private key30、credential assignment14、API key2、AWS key5、GitHub token1、跨split近任务81、工具参数21、最小保护上下文超限14、已选任务/trace重复80；另记录quota淘汰。只保存rule ID与record SHA。
+- 长度画像（只读，不是GPU吞吐）：10,000 decisions，输入总140,062,130 tokens；min/median/p95/max=4535/15532.5/16323/16384。seed20260905的16K token-budget plan为9,089 rows，tail alignment66,638 tokens，stream utilization99.9524%；逐样本固定16K padding利用率85.4871%。8,609个decision需删除完整旧交互；任务与最近观测仍受保护。这意味着A0并非仅10K短动作的低成本训练量。
+- 构建v1：质量重验、CAS、四表/报告/splits均生成于 `releases/.a0-v1.building`，但最终验证失败，未rename为正式release。诊断表明仅decisions.decision_type的Parquet默认子字段名`item→element`不同；顶层schema metadata及逻辑类型均相同。
+- 最小修复：writer显式`use_compliant_nested_type=False`保持既有schema的item字段；不修改canonical版本、数据内容或严格验收门。新增全部四表的严格Parquet round-trip回归测试。
+- 重跑策略：保留失败目录至 `releases/.a0-v1.failed-parquet-childname`，不删除证据。实现hash已变，旧admission不绕过hash检查；完整重新审计至a0_admission_v3.json后再构建。D-10仍进行中。
