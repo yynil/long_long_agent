@@ -1108,3 +1108,10 @@ Sprint 0 结束定义：G0 全部满足，且能够用一个极小的 synthetic 
 - 仓库QA：154个已有tracked文件中，禁止的大产物路径/扩展命中0；最大文件仍是用户授权的架构图（≤2,494,478 bytes）。本次新增仅A0 Markdown报告和小型manifest，无轨迹正文。
 - GitHub API再次确认 `yynil/long_long_agent` 为private、默认main；本地作者 `yynil <yueyu.lin@me.com>`，origin为用户个人仓库。交付命令为显式添加README/SPEC/两份A0报告、普通commit及 `git push origin main`，不使用force、不更改可见性。
 - 验收边界：105项测试通过；D-10完成，T-05只推进输入准备；ADR-019仍提议。正式训练与M0继续暂停，交接请求用户决定数值验收协议。
+
+### 2026-09-05 / Step 071：个人私有仓库推送回执与阶段交接
+
+- 关联工作：P0-00、D-10；执行Step070的交付命令成功。
+- 结果：`git push origin main` 将远端 `d8926f6..f0f9dda` 更新成功；交付commit完整SHA为 `f0f9dda8355a6c90eaee61aeff53dbbef0a39590`，包含A0验收报告、manifest及状态更新，也同步了此前的大产物Git忽略规则。
+- 本地复核：`git status --porcelain=v1`为空，`git rev-parse HEAD origin/main`逐值相同；GitHub commits/main API用于独立复核提交与指定作者。此回执作为后续日志提交随同main同步，Git历史及远端ref为最终提交锚点。
+- 停止位置：数据独立工作已收尾；下一执行动作涉及ADR-019数值验收协议变更，需用户明确决定。原门失败没有被改写，真实训练/M0/M2没有启动；所有大产物与失败证据保留在指定data root。
