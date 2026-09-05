@@ -1249,3 +1249,10 @@ Sprint 0 结束定义：G0 全部满足，且能够用一个极小的 synthetic 
 - 恢复证据：加载step1后模型、优化器、RNG、sampler、trainer全部指纹exact；Python/NumPy/Torch CPU/CUDA随机probe相同。独立进程执行下一批后，loss/grad norm等全部非计时指标、BF16模型、RNG、sampler、trainer仍exact，但优化器指纹不同，按原门标记failed；padded对照和较长overfit未启动。
 - 下一诊断：不推定BF16原因、不放宽exact门；补充逐参数梯度、FP32 master/moment指纹，并在最终等价检查前保存有限的完成更新checkpoint，使失败可做张量级复核。仅增加诊断/证据保存，不改模型/optimizer/输入/配置；固定新实现后在新 `real8k_v3` 目录重跑同一协议，v1/v2均保留。
 - 实现验证：新增FP32 master与moment独立指纹测试；首次插入位置使旧manifest断言落入另一测试，Ruff/pytest拒绝，恢复正确函数作用域后修复。全仓测试与Ruff通过后提交，再运行新目录；未修改训练参数或验收阈值。
+
+### 2026-09-05 / Step 087：将恢复差异定位到反向梯度，登记无恢复重复对照
+
+- 关联工作：T-07、M-08；119测试通过，固定 `cdf9df5` 执行 `real8k_v3`。连续两步通过，独立恢复后优化器仍failed，padded按依赖未启动；失败step2 checkpoint已保留。
+- 张量级复核：CPU `torch.load(weights_only=True)`比较两份step2；BF16模型全部逐值相同，40个优化器参数的差异集合与40个反向梯度差异参数完全对应。FP32 master仅11个元素不同/max abs1.49e-8；一阶moment46元素/max abs1.91e-7，二阶moment33元素/max abs1.44e-11，step计数全同。不是仅正负零表示不同。
+- 原因线索：差异仅落在mix参数、k_k/k_a、ln_x及ffn.x_k等归约向量；固定官方CUDA源码这些梯度使用FP32 atomicAdd分块归约再转BF16。该源码与差异分布支持原生反向归约波动的解释，仍需直接排除save/restore影响，不直接放宽验收。
+- 事前对照：新增 `src/training/resume_diagnostics.py` 与薄入口，固定v3 step1 checkpoint仅加载一次，在同一进程、同一8128-token真实输入上连续重复3次forward/backward/clip；中间不load/restore、不optimizer.step、不改权重，比较所有梯度并验证模型/optimizer未突变。只记录hash/聚合、status=diagnostic_complete，不把原因诊断当恢复门通过；提交实现后执行。
