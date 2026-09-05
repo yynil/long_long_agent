@@ -1008,3 +1008,22 @@ Sprint 0 结束定义：G0 全部满足，且能够用一个极小的 synthetic 
 - 实现：共享 runtime 重建临时 Git index，逐个应用固定 hash patch，再逐字节验证运行 worktree；只使用固定 checkpoint/tokenizer。生成限制 token/time、屏蔽未定义 token、处理 EOD/UTF-8、固定 sampling seed，不导出生成 fast state 为 slow commit。
 - 只读检查失败：直接把多份 reverse patch 传给 `git apply --reverse --check` 不能正确复原重叠 model.py hunk，未改 worktree；改为从 pinned tree 顺序正向重建 index 的验证方式。
 - 环境计划：SWE-rebench-V2 harness HEAD 固定为 `c71902a8cf8d2b725f63d51f199f4d3e56f68d2d`（只读 ls-remote）。本机 bwrap namespace smoke 成功，拟用 skopeo/umoci 将 OCI 镜像放在指定 data root；尚未下载/运行任何任务镜像。依据官方仓库文档 https://github.com/containers/skopeo、https://github.com/opencontainers/umoci 和 https://github.com/SWE-rebench/SWE-rebench-V2，后续核对工具版本、镜像 digest 与 verifier。
+
+### 2026-09-05 / Step 061：generation 首轮失败并定位官方/参考路径差异
+
+- 关联工作：M-02/M-08；事前配置 commit `c7edadd`。
+- 0.4B 结果：`artifacts/generation_parity_smoke_v1.json`（data root）完整保存 12 case/3 次重复生成，耗时 12.53 s，peak allocated 1,237,287,424 bytes。官方 vs stateful prefill 全部逐值一致；K=0 全部一致；重复生成一致；token-RNN 出现 14 条阈值超限（同一 case 可多项），最坏 mean KL≈0.00704、p95 KL≈0.03030、RMS≈0.020064，原验收失败。
+- 诊断：对齐 prefill 使用官方 CUDA recurrence，单 token 原先走 PyTorch reference；两者 FP32 运算融合、求和与 decay 指数实现不同。尚不能把全部误差归因于 WKV，也需排查 BF16 GEMV/GEMM 形状差异；1.5B 原实现正在运行以保存独立基线。
+- 最小修订：复核 pinned state-passing CUDA forward 已支持任意正 T，保存 floor(T/16) 检查点；限制来自 backward 的对齐需求。在严格 no-grad 下复用同一个官方 forward，保留训练时短窗 reference/full-BPTT，不改 kernel、不补假 token、不改阈值。这是 M-02 数值路径修复，不是提前执行 V0 chunk 优化。
+- 验证计划：固定原 thresholds 再测 v2，保留 v1；短 CUDA forward 与整段 state、reset 和输出的直接一致性另补测试。失败期间暂停长训练与 M0，继续数据治理与环境准备。
+- OCI 工具：首次 apt download 被无效 proxy URL 拒绝；仅在该命令取消代理后下载固定 skopeo/umoci Debian 包并解包至指定 data root。SHA 分别 `eff0ae56b5e95802696e114c013a3045b67a2c9d6807aaf84d102bd601161330` / `fa84af91f6ca20630bf1aa83392423a59b54ff5e95bcab9ba3aff13d5ef666b2`，与 apt metadata 一致；版本命令通过，未安装系统包或修改 Docker daemon。
+
+### 2026-09-05 / Step 062：定位审计性能瓶颈并保持等价 tokenizer 语义
+
+- 关联工作：D-09/D-10、M-02；首轮审计已扫描至少 134 条，50 条合格（train/dev/test=41/5/4），约 674 s，尚无 admission 文件或 release。
+- 只读 profile：固定首 shard 第一条 episode 最后 decision（111 messages、删除94、15,230 tokens），5.302 s/42,119,727 calls，其中 tokenizer 4.917 s、38,081,888 次 bytes.startswith，占约93%；不输出轨迹正文。
+- 动作：向已核实 PID 725446 发 SIGINT，正常中断在 tokenizer（exit130）；为避免旧实现审计混入新实现 hash，重新从头审计，不复用内存中的50个准入结果。
+- 等价修订：以 byte trie 代替二字节 bucket 的线性候选匹配，词表、greedy longest-match、EOD、特殊字节和 label 语义不变。新增全 65,529 词表 token 自编码检查，以及256组固定随机混合词表/任意字节与旧算法逐值对比。
+- 验证：全仓98 passed（4.09 s），Ruff通过。重新冻结实现 commit 后使用新 admission 路径 v2，旧首轮中断不是数据准入失败，也不宣称 A0 已完成。
+- 数值诊断补充：1.5B v1也未通过 KL（最坏mean≈0.01758、p95≈0.05412），prefill/K0/重复一致。0.4B v2官方短CUDA仍未通过，排除了“仅修WKV即可消除漂移”的假设。hook定位第0层 receptance/key/value 的首 token 已有差异；切换 BF16 reduced-precision reduction 不能稳定修复（只读临时实验，不改变正式运行配置）。
+- 环境：直连 Docker registry 超时；使用格式正确的本机 HTTP proxy 后 inspect成功，证明镜像可访问。检查镜像尚未下载。SWE-rebench harness 已 checkout 固定 commit，未运行其中生成/标注/外部API脚本。

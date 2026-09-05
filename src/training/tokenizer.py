@@ -37,13 +37,12 @@ class RWKVByteTokenizer:
         missing_bytes = [value for value in range(256) if bytes([value]) not in self.token_to_id]
         if missing_bytes:
             raise ValueError("vocabulary must contain all 256 single-byte tokens")
-        self._candidates: dict[tuple[int, int], tuple[bytes, ...]] = {}
-        grouped: dict[tuple[int, int], list[bytes]] = {}
-        for token in self.token_to_id:
-            if len(token) >= 2:
-                grouped.setdefault((token[0], token[1]), []).append(token)
-        for prefix, candidates in grouped.items():
-            self._candidates[prefix] = tuple(sorted(candidates, key=len, reverse=True))
+        self._trie: dict = {}
+        for token, token_id in self.token_to_id.items():
+            node = self._trie
+            for value in token:
+                node = node.setdefault(value, {})
+            node[-1] = token_id
 
     @property
     def defined_token_count(self) -> int:
@@ -62,15 +61,19 @@ class RWKVByteTokenizer:
         tokens: list[int] = []
         offset = 0
         while offset < len(source):
-            token = source[offset : offset + 1]
-            if offset + 1 < len(source):
-                candidates = self._candidates.get((source[offset], source[offset + 1]), ())
-                token = next(
-                    (candidate for candidate in candidates if source.startswith(candidate, offset)),
-                    token,
-                )
-            tokens.append(self.token_to_id[token])
-            offset += len(token)
+            node = self._trie
+            cursor, end, token_id = offset, offset + 1, None
+            while cursor < len(source):
+                node = node.get(source[cursor])
+                if node is None:
+                    break
+                cursor += 1
+                if -1 in node:
+                    end, token_id = cursor, node[-1]
+            if token_id is None:
+                raise ValueError("vocabulary does not cover an input byte")
+            tokens.append(token_id)
+            offset = end
         return tokens
 
     def encode(self, source: str) -> list[int]:

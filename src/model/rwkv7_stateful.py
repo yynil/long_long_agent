@@ -152,7 +152,10 @@ def state_passing_reference(r, w, k, v, a, b, s0, sequence_start_mask):
 
 
 def state_passing(r, w, k, v, a, b, s0, sequence_start_mask):
+    torch = _torch()
     batch, timesteps, channels = r.shape
+    if r.is_cuda and timesteps % CHUNK_LEN and not torch.is_grad_enabled():
+        return state_passing_inference(r, w, k, v, a, b, s0, sequence_start_mask)
     if not r.is_cuda or timesteps % CHUNK_LEN:
         return state_passing_reference(r, w, k, v, a, b, s0, sequence_start_mask)
     head_size = s0.shape[-1]
@@ -163,6 +166,55 @@ def state_passing(r, w, k, v, a, b, s0, sequence_start_mask):
     operation = _state_passing_operation()
     output, final_state = operation.apply(
         s0.contiguous(), *values, sequence_start_mask.contiguous()
+    )
+    return output.view(batch, timesteps, channels), final_state
+
+
+def state_passing_inference(r, w, k, v, a, b, s0, sequence_start_mask):
+    """Use the official forward recurrence for any T, never its aligned backward.
+
+    The pinned CUDA forward loops over T and stores floor(T/16) checkpoints.
+    Its backward requires aligned T, so this entry is strictly inference-only.
+    No fake tokens are appended and no recurrent state update is discarded.
+    """
+    torch = _torch()
+    if torch.is_grad_enabled():
+        raise RuntimeError("unaligned CUDA forward is inference-only")
+    if r.ndim != 3 or not r.is_cuda or r.dtype != torch.bfloat16:
+        raise ValueError("expected BF16 CUDA tokens of shape [B,T,C]")
+    batch, timesteps, channels = r.shape
+    if timesteps <= 0 or channels % 64:
+        raise ValueError("invalid inference WKV shape")
+    heads = channels // 64
+    if tuple(s0.shape) != (batch, heads, 64, 64) or s0.dtype != torch.float32:
+        raise ValueError("expected FP32 WKV state [B,H,64,64]")
+    if (
+        tuple(sequence_start_mask.shape) != (batch, timesteps)
+        or sequence_start_mask.dtype != torch.uint8
+    ):
+        raise ValueError("invalid inference sequence_start_mask")
+    if any(
+        value.shape != r.shape or value.dtype != r.dtype or value.device != r.device
+        for value in (w, k, v, a, b)
+    ):
+        raise ValueError("inference WKV token tensors disagree")
+    if s0.device != r.device or sequence_start_mask.device != r.device:
+        raise ValueError("inference WKV device mismatch")
+    values = [value.contiguous().view(batch, timesteps, heads, 64) for value in (r, w, k, v, a, b)]
+    output = torch.empty_like(values[0])
+    final_state = torch.empty_like(s0)
+    checkpoints = torch.empty(
+        batch, heads, timesteps // CHUNK_LEN, 64, 64, device=r.device, dtype=torch.float32
+    )
+    state_a = torch.empty(batch, timesteps, heads, 64, device=r.device, dtype=torch.float32)
+    torch.ops.rwkv7_statepassing_clampw.forward(
+        s0.contiguous(),
+        *values,
+        sequence_start_mask.contiguous(),
+        output,
+        final_state,
+        checkpoints,
+        state_a,
     )
     return output.view(batch, timesteps, channels), final_state
 
