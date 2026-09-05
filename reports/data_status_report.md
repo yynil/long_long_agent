@@ -95,7 +95,7 @@ A0 两教师各 500 条，来源 success/failure 为 399/601。失败轨迹用�
 
 工具参数解析成对象后 canonicalize；训练模板统一 tool call/response。CE 只覆盖允许的 assistant token，action 可加权；system/user/tool 不计 CE。decision window 保留任务及必要近期交互，超限删除完整旧交互组或拒绝，不截掉任务后只训练答案。
 
-A0 的 10,000 个决策窗口共 140,062,130 个有效输入 token，不能按 10K 条短样本估算训练成本。16K release 与另行准备的 train-only 8K 32/128 overfit 输入不是同一长度口径；后者只完成输入准备，尚未训练。长度、loss token、尾部对齐和 manifest 细节统一见 [A0 验收报告](a0_release_assessment.md)，这里不重复维护。
+A0 的10,000个决策窗口共140,062,130个有效输入token，不能按10K条短样本估算训练成本。16K release与另行准备的train-only 8K 32/128输入不是同一长度口径；完整overfit尚未执行，另有[真实两步预检与恢复诊断](real_a0_training_preflight.md)。输入计划的 `training_executed=false` 是生成时的不可变记录，不覆盖后续独立run状态。长度、loss token、尾部对齐和manifest细节统一见[A0 验收报告](a0_release_assessment.md)。
 
 ## 6. 证据位置与本次复核
 

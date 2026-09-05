@@ -1,6 +1,6 @@
 # 真实 A0 训练预检与 GPU 恢复验证
 
-日期：2026-09-05。当前状态：真实两步全参数更新通过；独立GPU恢复后模型/指标一致，但优化器指纹不同，正在诊断；不是 32/128 overfit 完成报告。
+日期：2026-09-05。当前状态：真实两步全参数更新通过；checkpoint加载逐值一致，下一步优化器严格指纹门未通过；已在不重复恢复的对照中确认原生反向梯度波动。不是32/128 overfit完成报告。
 
 [统一入口](../rwkv7_agent_only_data_training_plan_zh.md) · [数据范围](data_status_report.md) · [A0 输入计划](a0_release_assessment.md)
 
@@ -46,3 +46,35 @@ flowchart TD
 独立恢复进程：step1加载后的所有指纹一致；更新2后的loss、gradient norm、BF16模型、RNG、sampler与trainer counters仍exact，仅优化器指纹不同，因此恢复门失败。padded对照和较长overfit暂停。新增逐参数梯度/master/moment诊断与失败checkpoint保留后，在新目录重跑，不放宽exact门，也不把此新差异直接归因于此前ADR-019。
 
 此预检即使通过，也只证明两次真实更新与独立进程恢复，不证明32/128任务集稳定过拟合、真实Agent成功率、SM89/DDP恢复或G1。真实32→128 overfit的完整步数与下降阈值须在对应实验前另行登记。
+
+## 4. 反向归约差异的直接对照
+
+`real8k_v3`（commit `cdf9df5`）增加逐参数指纹和失败checkpoint保留，重复确认两步更新通过、原严格恢复门失败。模型、配置、输入及阈值不变；两步耗时1.601/1.310s，峰值仍约21.04GiB。完整分母、代码commit及原始报告SHA见[机器汇总](a0_training_preflight_summary.json)，不只保存成功结果。
+
+CPU比较连续与恢复的 `step2.pt`（`torch.load(weights_only=True)`）：
+
+| 对象 | 不同元素 | 最大绝对差值 |
+|---|---:|---:|
+| BF16模型权重 | 0 | 0 |
+| FP32 master | 11 | 1.49e-8 |
+| 一阶moment | 46 | 1.91e-7 |
+| 二阶moment | 33 | 1.44e-11 |
+| optimizer step计数 | 0 | 0 |
+
+40个优化器参数与40个梯度差异参数集合完全对应，均为mix、k_k/k_a、ln_x、ffn.x_k等归约向量。固定官方CUDA源码对这些梯度使用FP32 `atomicAdd`分块归约，再转换为BF16；这是源码观察，不把所有CUDA算子都归为非确定性。
+
+为排除checkpoint恢复本身，事前登记并执行 [无恢复重复反向对照](../src/training/resume_diagnostics.py)：checkpoint只加载一次，固定同一8128-token输入，重复三次forward/backward/clip，中间没有load/restore或optimizer更新。结果：
+
+- 三次loss都是 `1.1690021753311157`，preclip norm都是 `328`。
+- 第2/3次相对第1次，分别有44/37个梯度张量、48/43个元素不同。
+- 模型与optimizer状态始终未突变；参数更新次数为0。
+
+该直接对照证明梯度波动不需要再次恢复就会发生；结合差异参数与官方源码，证据指向FP32并行原子归约经BF16舍入后产生的原生微小波动，而非保存时漏掉训练状态。尚不能据三次重复推断长作业误差界限，或据此把旧exact失败改为通过。
+
+对照命令为固定重建环境运行 `scripts/diagnose_a0_backward_repeat.py --reference-root <data root>/artifacts/training_preflight/real8k_v3 --output <data root>/artifacts/training_preflight/native_backward_repeat_v1.json`，LM/CUDA worktree与build参数沿用预检；执行commit `a5f3a5d`。产物是原因诊断，不是新验收门的确认实验。
+
+## 5. 下一步，不静默改门
+
+已在SPEC登记ADR-020提议：保持保存/加载本身逐值一致；补充固定同一梯度的GPU optimizer续步对照，隔离checkpoint机制；原生下一步则需与不经过恢复的重复运行波动比较，并在独立确认前冻结新数值预算。当前只是提议，旧strict失败保留，padded对照和完整32/128 overfit仍未启动。
+
+不为追求hash相同改动官方CUDA，也不直接切换dtype、缩短保护上下文或扩大训练。真实32/128还须覆盖较长监督目标和多个任务，再估算完整训练预算。

@@ -23,6 +23,7 @@ flowchart LR
 - [统一文档入口](rwkv7_agent_only_data_training_plan_zh.md)：研究设计、数据、模型、训练与评测的分类导航。
 - [原始研究设计](docs/research_design_zh.md)：冻结的研究动机与实验路线。
 - [数据状态与质量报告](reports/data_status_report.md)：全池与 A0 的验证、去重、格式覆盖及未完成项。
+- [真实 A0 训练预检](reports/real_a0_training_preflight.md)：两步全参数更新、GPU恢复的原strict失败与原生反向波动对照。
 - [项目审查](reports/project_progress_review_2026-09-05.md)：工程证据与研究假设的边界。
 - [A0 验收与后续计划](reports/a0_release_assessment.md)：正式数据版本、真实 overfit 输入和当前阻塞。
 - [BF16 原因与独立确认](reports/generation_parity_diagnosis.md)：精度干预证据、旧失败记录及已通过的本机 M-02。

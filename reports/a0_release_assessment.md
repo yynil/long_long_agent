@@ -1,6 +1,6 @@
 # A0 v1 验收与下一步计划
 
-日期：2026-09-05。结论：A0 的准入、不可变构建和独立复核通过；真实 32/128 overfit 输入已准备，**没有执行对应训练**。M-02 旧数值门失败保留，ADR-019 本机独立工程确认已通过；远程验证与 G1 仍未通过，不能把数据完成等同于研究假设成立。
+日期：2026-09-05。结论：A0 的准入、不可变构建和独立复核通过；真实32/128输入已准备，**完整overfit尚未执行**。另有[真实两步训练预检](real_a0_training_preflight.md)通过，GPU原生续步的优化器exact门未通过。ADR-019本机工程确认通过、原失败保留；远程验证与G1仍未通过，不能把数据完成等同于研究假设成立。
 
 本报告只维护 A0 版本与输入细节；五来源是否全部验证、去重和统一格式，见[数据状态与质量报告](data_status_report.md)。其他专题从[统一文档入口](../rwkv7_agent_only_data_training_plan_zh.md)访问。
 
@@ -66,7 +66,7 @@ seed `20260905` 的 16K token-budget 计划有 9,089 rows、66,638 个尾部对�
 | loss token | 10,994 | 47,069 |
 | pack rows | 32 | 128 |
 | 尾部对齐 token | 222 | 947 |
-| 已执行训练 | 否 | 否 |
+| 已执行该规模完整overfit | 否 | 否 |
 
 计划路径：`/home/yueyulin/data/long_long_agent/artifacts/a0_overfit_inputs_v1.json`，SHA256 `c095653410863582b60b73c1324a080837b5c580e0d1c8ac890de0c5205437e9`。其闭合 schema 固定 `training_executed=false`；保存样本、token 和目标 hash，不保存正文。
 
@@ -80,7 +80,7 @@ seed `20260905` 的 16K token-budget 计划有 9,089 rows、66,638 个尾部对�
 下一步依赖顺序：
 
 1. ADR-019 已按用户条件授权接受，本机 M-02 独立工程确认通过（SPEC Step 074～078）。原失败记录与阈值继续保留，工程确认不取代真实 Agent 评测。
-2. 现在可继续本机真实 32/128 overfit、GPU 中断恢复、run registry 和 Agent loop；先做真实 8K tiny smoke 并实测训练峰值与有效 token 吞吐。三卡 SM89/DDP/NCCL 的环境验收仍独立待办。
+2. 真实8K两步tiny smoke已通过并记录峰值/步耗时；GPU加载逐值通过，但原生续步优化器exact门未通过，无再次恢复对照确认有原生反向梯度波动。先按训练预检报告补隔离验收，再做完整32/128 overfit与padded计时；Agent loop、三卡SM89/DDP/NCCL仍独立待办。
 3. 完成 20～30 个 dev 任务的 M0 pilot，必要时做受限格式 SFT；在独立确认实验前冻结 G1 数值门槛，并用相同 checkpoint、snapshot、sampling 和工具预算比较四基线。
 4. 只有 G1 通过，才扩大 paired snapshot 数据与 fixed-K V0 训练。若失败，保存诊断并停在该门，不自动推进 M2。
 

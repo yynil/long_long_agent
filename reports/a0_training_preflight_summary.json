@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "scope": "local_sm86_0.4b_two_real_updates_and_resume_diagnosis",
+  "config_sha256": "0fb22d6ed382d0c1c1666f74734836690c3ab747af9c50b72d6bbf49695ad436",
+  "preflight_code_commit": "cdf9df54e648b2359afc024fd0c2a65c56e629b8",
+  "backward_diagnostic_code_commit": "a5f3a5d6e3194ee16e471b4878e219571c137693",
+  "artifact_root": "/home/yueyulin/data/long_long_agent/artifacts/training_preflight",
+  "artifacts": {
+    "real8k_v3/continuous/result.json": "283c3fe22c64364e022b9c85a2016279b220c5252911574a42c80be2d8ed1915",
+    "real8k_v3/resume/result.json": "37531cae0d665996ac6fddf12d95f0af7e201d6f29f9d56c535a5c28b9309183",
+    "native_backward_repeat_v1.json": "82c95f4c333d6c2f27dac665b43cf5ff901aa58eb4e9eb964fa3ee0274645f75"
+  },
+  "continuous": {
+    "status": "passed",
+    "optimizer_updates": 2,
+    "unique_tasks_executed": 2,
+    "trainable_parameters": 450834432,
+    "parameter_tensors": 798,
+    "real_tokens": [8153, 8128],
+    "loss_tokens": [62, 66],
+    "losses": [1.3965834379196167, 1.1690021753311157],
+    "step_seconds": [1.600753661710769, 1.310252508148551],
+    "maximum_peak_allocated_bytes": 22589985280
+  },
+  "resume": {
+    "status": "failed",
+    "restored_checkpoint_state_exact": true,
+    "next_batch_and_non_timing_metrics_exact": true,
+    "final_bf16_model_exact": true,
+    "final_rng_sampler_trainer_exact": true,
+    "final_optimizer_exact": false,
+    "changed_gradient_parameters": 40,
+    "changed_optimizer_parameters": 40,
+    "fp32_master_changed_elements": 11,
+    "fp32_master_max_absolute_difference": 1.4901161193847656e-8,
+    "first_moment_changed_elements": 46,
+    "first_moment_max_absolute_difference": 1.9073559087701142e-7,
+    "second_moment_changed_elements": 33,
+    "second_moment_max_absolute_difference": 1.4442669282743736e-11,
+    "optimizer_step_counts_exact": true
+  },
+  "native_backward_repeat": {
+    "status": "diagnostic_complete",
+    "checkpoint_loads": 1,
+    "repeats_without_reload": 3,
+    "optimizer_updates": 0,
+    "model_and_optimizer_unchanged": true,
+    "loss_and_gradient_norm_identical": true,
+    "different_gradient_elements_vs_first": [0, 48, 43],
+    "different_gradient_tensors_vs_first": [0, 44, 37],
+    "native_gradient_variation_observed": true
+  },
+  "padded_control_executed": false,
+  "complete_32_or_128_overfit_executed": false,
+  "g1_passed": false,
+  "limitations": [
+    "Original exact native-update resume gate remains failed.",
+    "Native backward variation occurs without checkpoint reloads; official FP32 atomic reductions and BF16 gradient casts match affected parameter families.",
+    "Two longest input windows have short supervised targets and do not establish capacity for every real sample.",
+    "No Agent outcome, distributed resume, full overfit, or throughput speedup claim."
+  ]
+}
