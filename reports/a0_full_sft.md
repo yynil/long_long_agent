@@ -1,6 +1,6 @@
 # A0 单epoch完整SFT与dev验证
 
-日期：2026-09-05。状态：启动协议冻结，GPU结果待运行。范围仅固定0.4B、本机单卡、已准入A0成功来源；不使用更大模型。
+日期：2026-09-05。状态：tmux GPU训练运行中（上海23:35进度快照），初始全dev验证完成，完整epoch及末轮验证尚未完成。范围仅固定0.4B、本机单卡、已准入A0成功来源；不使用更大模型。
 
 [统一入口](../rwkv7_agent_only_data_training_plan_zh.md) · [完整数据报告](a0_sft_inputs.md) · [真实过拟合与容量](real_a0_overfit.md)
 
@@ -37,3 +37,17 @@ flowchart LR
 用户指定tmux。入口 [run_a0_full_sft.py](../scripts/run_a0_full_sft.py)，核心 [full_sft.py](../src/training/full_sft.py)。使用固定重建环境和LM/CUDA/build，输出 `<data root>/artifacts/real_sft/a0_full_sft_v1`，日志独立位于同级 `.launch.log`；不覆盖已有输出。会话名、启动commit和实际进度在启动日志补充。
 
 估计70～90分钟：按真实overfit约6200 input tokens/s，纯训练约65分钟，再加全dev评估、checkpoint和初始化。以实际日志为准；不在尚未执行完时标记SFT通过。该预算不含后续自由生成工具执行评测或latent实验。
+
+## 已启动会话与进度快照
+
+启动commit `20b6f056e29317ebeed1d835a83a24a78d610105`，run manifest SHA `9b3cebf216f5eb0107ce8c6016b2c864321fcb0fb89fbf5e9d9451ce21504cfe`。tmux会话 `rwkv-a0-sft-04b-v1`，pane PID163272、GPU Python PID163276；0.4B checkpoint SHA与上述固定基座相同。
+
+系统原先没有tmux，已在data root局部解包APT固定版本3.6a-2ubuntu0.1（binary自报3.6），不改变Python训练环境。查看会话：
+
+```sh
+/home/yueyulin/data/long_long_agent/tools/tmux-3.6a/usr/bin/tmux attach -t rwkv-a0-sft-04b-v1
+```
+
+`Ctrl-b d`只离开会话，不中断训练。日志为 `/home/yueyulin/data/long_long_agent/artifacts/real_sft/a0_full_sft_v1.launch.log`；同级run目录内每512行有checkpoint/dev/progress，最后以`result.json`的status和完整覆盖判定。remain-on-exit已开启，进程结束时会话仍可查看；会话存在本身不代表进程仍在运行。
+
+上海2026-09-05 23:35:14快照：100/3329 updates、failed_checks为0。初始186/186 dev weighted CE `1.10627946134`，weight分母97,155，loss-token分母57,713。前100步平均1.15233秒，投影纯更新约63.94分钟；加全部dev/checkpoint，70～90分钟总预算仍合理。训练更新中的单batch loss不是完整dev结论；后续状态请读取实际日志，不把本静态快照当实时监控。

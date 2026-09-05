@@ -57,3 +57,9 @@ flowchart LR
 32/128训练步吞吐分别6205.17/6200.47 input tokens/s，不含eval/checkpoint；含eval/checkpoint的训练主体390.82/1487.05秒，不含前置输入重建、模型加载和manifest校验。峰值分别22,817,951,744/23,154,790,400 bytes。各组第4/8轮全状态checkpoint均保存；未用最好轮替代末轮。
 
 最长2271监督token容量连续2步passed，peak23,165,181,952 bytes；padded为23,176,938,496 bytes。packed/padded吞吐比1.00604仅n=2且含warmup；两次更新的第二步loss存在BF16形状差异，不宣称逐位parity或稳定加速。这项容量仅覆盖原128计划，[完整SFT输入](a0_sft_inputs.md)最大监督3107 tokens须另测。
+
+## 5. 完整train最坏监督容量补测：通过
+
+固定 `cbbe4a1`，按[完整容量配置](../configs/a0_sft_capacity.yaml)构建全部3329 train的实际epoch0 packed plan，seed20260909。完整覆盖与顺序hash通过；最大监督row616为8007 input/3107 loss tokens、weight分母6180，尾部独立reset补齐8192，连续2次全参数更新。loss0.6001036763→0.5768435001、norm42.5/25.375、1.6853/1.4213秒；稳态peak23,406,879,232 bytes，低于原23000MiB停止线，passed。
+
+该完整计划真实input24,082,820、aligned24,107,760、loss1,078,726 tokens，plan SHA `0e6d2aab713071619ca6d6fc754d8b69629ada6024a27f693fe6f635e244222e`。原始产物位于data root `artifacts/real_sft/a0_complete_capacity_v1`，result SHA `9bf4cb45bf1eddd634632b43abd9ec707acc0dfc8abad02bd2ad8e61c9b8990c`，完整final checkpoint保留；这不是正式SFT更新，随后SFT仍从原始基座开始。

@@ -80,7 +80,7 @@ seed `20260905` 的 16K token-budget 计划有 9,089 rows、66,638 个尾部对�
 下一步依赖顺序：
 
 1. ADR-019 已按用户条件授权接受，本机 M-02 独立工程确认通过（SPEC Step 074～078）。原失败记录与阈值继续保留，工程确认不取代真实 Agent 评测。
-2. 真实8K两步tiny smoke与GPU加载通过；最新[独立恢复报告](gpu_resume_confirmation.md)确认固定梯度机制逐位一致，但新任务原生预算门仍失败。先完成新的事前原生确认协议及验收，再测最坏监督容量、padded与完整32/128 overfit；Agent loop、三卡SM89/DDP/NCCL仍独立待办。
+2. 后续[原生v2独立恢复](gpu_resume_confirmation.md)、[真实32/128及完整train容量](real_a0_overfit.md)已通过；[完整SFT输入](a0_sft_inputs.md)逐decision验证完成，0.4B单epoch训练/全dev验证已启动。Agent loop、三卡SM89/DDP/NCCL仍独立待办；不改写此前失败。
 3. 完成 20～30 个 dev 任务的 M0 pilot，必要时做受限格式 SFT；在独立确认实验前冻结 G1 数值门槛，并用相同 checkpoint、snapshot、sampling 和工具预算比较四基线。
 4. 只有 G1 通过，才扩大 paired snapshot 数据与 fixed-K V0 训练。若失败，保存诊断并停在该门，不自动推进 M2。
 

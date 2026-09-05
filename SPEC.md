@@ -1,6 +1,6 @@
 # RWKV-7 长 Agent 训练项目规格与执行台账
 
-> 状态：P0收尾 / A0、本机M-02、原生恢复v2与真实32/128各8轮overfit通过；完整A0正向SFT输入独立验证通过；补测全train容量，G1与规模化latent训练未放行<br>
+> 状态：P0收尾 / A0、本机M-02、原生恢复v2、真实32/128与完整train容量通过；tmux运行本机0.4B完整A0单epoch SFT及dev验证；G1与规模化latent训练未放行<br>
 > 规格版本：0.13.0<br>
 > 创建日期：2026-09-04  
 > 统一入口：[`rwkv7_agent_only_data_training_plan_zh.md`](./rwkv7_agent_only_data_training_plan_zh.md)<br>
@@ -250,7 +250,7 @@ artifacts/models/<run_id>/
 | P0-03 | 建立 Python/CUDA 依赖锁 | lockfile + 容器定义 | 新环境可完成最小前向 | 进行中：66包distribution hash锁、新环境重建/105项测试/全新CUDA cache前向通过；远程环境待建 |
 | P0-04 | 冻结 held-out 边界 | `data/heldout/*.txt` | 分组规则与污染测试就绪 | 完成：五来源 42,982 group 的 repo/task 90/5/5 hash split、列表校验与 canonical v1.1 接入通过 |
 | P0-05 | 固化数据、训练、评测配置 schema | `schemas/` | CI 可校验所有配置 | 进行中：source registry 与四表 schema 已建立 |
-| P0-06 | 建立跨文档架构图审计基线 | 全部 Markdown 文档；`docs/diagrams/*.png` | 每份文档有精确 Mermaid 图；模型有从系统到源码符号的手绘图并完成链接/图像校验 | 完成：27份文档/27个Mermaid/160个本地链接通过（Step106）；5张手绘图沿用既有视觉、尺寸与hash验收 |
+| P0-06 | 建立跨文档架构图审计基线 | 全部 Markdown 文档；`docs/diagrams/*.png` | 每份文档有精确 Mermaid 图；模型有从系统到源码符号的手绘图并完成链接/图像校验 | 完成：27份文档/27个Mermaid/163个本地链接通过（Step108）；5张手绘图沿用既有视觉、尺寸与hash验收 |
 
 #### 已确认的资源分工
 
@@ -295,7 +295,7 @@ D-09 本轮完成范围是 Step 057 冻结的 Open-SWE 两教师 A0 候选准入
 | M-05 | 实现 V0 latent control/depth embedding | M-04 | latent step 无 LM-head call；K=0 等价 | 完成：短窗可微 recurrence 与真实 0.4B K=0/K=4 验证通过 |
 | M-06 | 实现 action 与多任务 value readout | M-05 | shape、mask、loss 和梯度测试 | 完成：复用 LM head、九任务 value、masked loss 与真实 0.4B 梯度通过 |
 | M-07 | 实现 state cache 与不可变 cache key | M-03 | hash 任一分量变化即 miss | 待办 |
-| M-08 | 数值、吞吐与显存基准 | M-05 | K=0/1/2/4/8 的 profile | 进行中：128计划最长2271监督容量/padded及真实overfit通过；完整train最大3107监督容量与K系列待测（Step103） |
+| M-08 | 数值、吞吐与显存基准 | M-05 | K=0/1/2/4/8 的 profile | 进行中：2271/padded与完整train3107监督容量通过；0.4B全量SFT运行中，K系列成本待测（Step107） |
 | M-09 | 实现 packed-varlen RWKV-7 路径 | M-01,M-02 | WKV/TMix/CMix 边界 reset；packed/unpacked 前反向 parity；无跨段串扰 | 进行中：本机 kernel/state-passing parity 与 0.4B 全参数 packed trainer 已通过；SM89/DDP 待验证 |
 
 V1 continuous feedback 只有在 G3 通过后单独立项；不得混入 V0 可行性验证。
@@ -308,7 +308,7 @@ V1 continuous feedback 只有在 G3 通过后单独立项；不得混入 V0 可�
 | T-02 | 复刻官方参数分组、初始化和 decay 规则 | M-01 | 参数名覆盖率 100%，未知参数 fail closed | 完成：0.4B/1.5B base + latent + value 804/804 覆盖；实际 LR/decay 待 tiny overfit 选择 |
 | T-03 | 建立小样本 overfit harness | T-01,T-02,T-10 | 32/128 样本 loss 可预期下降 | 完成：合成与真实32/128各8轮均通过；末轮/初始0.02526/0.02745、完整256/1024呈现（Step103） |
 | T-04 | 建立 M0 四基线评测 harness | D-10,M-02 | 同 snapshot、seed、预算、工具版本 | 进行中：离线真实dev任务的buggy/gold verifier及sandbox预算通过；M-02本机阻塞解除，Agent loop/四基线仍未完成 |
-| T-05 | 建立 M1 Agent SFT 配置 | D-10,T-03 | 配比、loss weight、resume 可复现 | 进行中：原生恢复v2/真实overfit通过；完整A0成功来源train3329/dev186输入验证passed，补容量后接SFT/验证（Step103） |
+| T-05 | 建立 M1 Agent SFT 配置 | D-10,T-03 | 配比、loss weight、resume 可复现 | 进行中：tmux运行0.4B完整train3329单epoch，初始全dev186 CE1.106279已记录，最终验证未完成（Step107） |
 | T-06 | 建立 M2 fixed-K curriculum 与 loss | D-12,M-05,T-03 | K sampling、KD/exit/anchor 测试 | 阻塞于 G1 |
 | T-07 | 建立指标、checkpoint 与 run registry | P0-05 | run 可追到代码/数据/模型/hardware | 进行中：本机原生恢复v2、完整overfit指标与checkpoint通过；旧strict/v1失败保留，长作业/DDP仍未验收（Step103） |
 | T-08 | 建立失败检测与 stop rules | T-04,T-07 | NaN、OOM、漂移、回归自动中止 | 进行中：预检finite/资源与独立原生预算越界停止已验证，失败完整保留；完整训练/Agent回归规则待验收（Step094） |
@@ -404,7 +404,7 @@ Sprint 0 结束定义：G0 全部满足，且能够用一个极小的 synthetic 
 | ADR-017 | 2026-09-05 | 收紧 ADR-009：decision window 必须保留任务契约、当前必要 observation 和成对工具交互；最小充分上下文超限时拒绝并计数 | Step 053 复现现有裁剪可删除全部任务/observation、仍监督 assistant；这会损坏 action 的条件信息，须在 A0 前解决 | 已接受：用户要求按审查建议完成步骤 1～4 |
 | ADR-018 | 2026-09-05 | M0 分为开发集基座诊断与独立确认实验；必要时在 G1 前做受限的 Agent 格式 SFT，再用同一 SFT checkpoint 比较 no/short/long-think；G1 数值门槛必须早于确认实验冻结 | 避免把格式失败误判为 thinking 无效，以及用确认结果反推 G1 阈值 | 已接受：用户要求按审查建议完成步骤 1～4；G1 仍是 paired 规模化与 M2 的前置门 |
 | ADR-019 | 2026-09-05 | 将 M-02 验收分为“同矩阵形状的严格 recurrence 等价”和“原生部署形状的数值漂移/行为验收”，在独立提示集与长窗上重新事前冻结后者阈值；训练保留官方路径，部署默认不做矩阵行填充 | Step061～063同形状逐值等价；Step074～075精度干预确认BF16形状/reduction舍入原因；原失败保留 | 已接受：用户“如果是bf16的原因，可以继续推进不需要确认”；Step078本机独立工程确认通过。非真实Agent/G1通过，不自动扩大训练 |
-| ADR-020 | 2026-09-05 | T-07区分逐值保存/加载、固定梯度optimizer续步和原生反向噪声下的续步验收；新数值预算须在独立确认前冻结，保留原exact失败 | Step087～088：恢复点全部exact；无再次恢复的3次反向仍有微小梯度波动，相关官方归约使用FP32 atomicAdd再转BF16 | 已接受框架（Step089）；Step094固定梯度机制exact，但独立原生预算门failed，后续新预算须重新事前登记；不放行overfit |
+| ADR-020 | 2026-09-05 | T-07区分逐值保存/加载、固定梯度optimizer续步和原生反向噪声下的续步验收；新数值预算须在独立确认前冻结，保留原exact失败 | Step087～088：恢复点全部exact；无再次恢复的3次反向仍有微小梯度波动，相关官方归约使用FP32 atomicAdd再转BF16 | 已接受框架；Step094固定梯度exact、v1原生门失败保留；后续v2在ADR-021/Step098独立通过，不重判v1 |
 | ADR-021 | 2026-09-05 | ADR-020新增v2尺度归一化工程验收：gradient/moment误差同时限制逐张量relative-L2及max-abs/RMS；保存加载/固定梯度/模型/计数仍exact，旧配置与失败保留 | Step092的absolute上限不能跨梯度尺度迁移；Step094机制exact，源码已涵盖r_k原子归约 | 已接受窄范围推进：用户要求继续尽快进入SFT且既有BF16原因授权有效；具体v2配置必须在新任务GPU前冻结，失败不放行 |
 | ADR-022 | 2026-09-05 | 完整A0 SFT输入准备逐条覆盖全部准入decision的去向：source_success=true才作为首版SFT正例，失败轨迹单独记录等待验证recovery；保持train/dev/test严格分离，8K保护上下文溢出拒绝 | 不把工程overfit中的失败动作自动视为正确监督，且不能把全下载池等同于合格训练集 | 已接受数据准备子范围：用户要求推进完整SFT；不改变canonical release、不自动放行正式训练或G1 |
 
@@ -1393,3 +1393,17 @@ Sprint 0 结束定义：G0 全部满足，且能够用一个极小的 synthetic 
 - 关联工作：P0-03/P0-06/T-05/T-07；第一次APT下载因既有代理格式无效失败，未安装。仅本次下载进程清除代理并使用APT DIRECT，固定deb下载及SHA校验通过，解包到 `<data root>/tools/tmux-3.6a`；未修改系统包或训练Python环境。所有动态库可解析，包版本3.6a-2ubuntu0.1，binary自报tmux3.6，binary SHA `3bdeba4db61fa25e569e5d1ca6466acfd193018c7bbc2bc924ec415ffa0c2e58`。
 - 文档复核：27份Markdown/27个Mermaid/160个本地链接通过；新增独立SFT训练报告，统一入口仅导航。恢复报告增加v2 passed实测分母，保留旧strict/v1失败；数据报告保留A0与全下载池边界，不混入训练曲线。前述154 tests和离线真实manifest schema通过。
 - GPU启动前：3090 Ti 0/24564MiB；SFT输出目录和launch log均不存在，确认模型角色smoke即固定0.4B。计划提交隔离worktree后以fast-forward整合回干净main（真实overfit和capacity进程均已退出），tmux会话 `rwkv-a0-sft-04b-v1`，显式 `CUDA_VISIBLE_DEVICES=0`，固定训练Python/CUDA/LM/kernel/build；bash pipefail+tee同时保留终端和独立launch log。最终状态/elapsed/首批指标下一条补记，不把尚未启动作业记为完成。
+
+### 2026-09-05 / Step 107：tmux已启动0.4B完整SFT及验证，保留运行中状态
+
+- 关联工作：T-05/T-07/T-08，用户要求tmux GPU/仅0.4B。实现 `20b6f056e29317ebeed1d835a83a24a78d610105` 已整合至main并推送个人private origin；一次误用worktree路径作为merge ref被Git拒绝、无改动，随后按commit正常fast-forward成功。固定导出commit `47819f7` 和容量commit `cbbe4a1` 历史均保留，不重建或覆盖原数据。
+- 启动：`<data root>/tools/tmux-3.6a/usr/bin/tmux new-session -d -s rwkv-a0-sft-04b-v1 -c /home/yueyulin/github/long_long_agent /bin/bash -o pipefail -c '<固定env> python -u scripts/run_a0_full_sft.py --lm <固定LM> --cuda <固定CUDA> --build <固定build> 2>&1 | tee <data root>/artifacts/real_sft/a0_full_sft_v1.launch.log'`，随后设置remain-on-exit on；env含CUDA_VISIBLE_DEVICES=0、原PATH/CUDA_HOME/TORCH_EXTENSIONS_DIR/MAX_JOBS=4，不打印或导出其他环境秘密。pane PID163272，GPU Python PID163276；nvidia-smi确认其在3090 Ti运行。
+- 模型/产物：manifest SHA `9b3cebf216f5eb0107ce8c6016b2c864321fcb0fb89fbf5e9d9451ce21504cfe`，checkpoint SHA `947cb9b8013224e06b112b72204256bec65096cc935a7767ce63d8e3ddef83bb`，确为固定0.4B。train3329、dev186、test未加载。run位于 `<data root>/artifacts/real_sft/a0_full_sft_v1`，初始dev/逐step metrics已落盘，最终result尚未产生。
+- 实测快照（2026-09-05 15:35:14 UTC / 上海23:35:14）：初始全dev CE1.10627946134，weight分母97155、loss分母57713、186/186 samples与rows；已100/3329次真实更新，无failed_checks，峰值23,026,028,544 bytes。前100步平均1.15233s、median1.21001s，预计纯更新约63.94分钟，剩余纯更新约62.01分钟；加dev/checkpoint与余量仍估70～90分钟总时长，不是保证。
+- 复核：main重建环境154 tests通过（2.86s）、Ruff check/format通过（141文件）、diff通过。训练保持运行，未自动结束tmux或改模型/epoch；此条之后的仓库修改仅更新报告，不变更已加载训练代码。后续以每512行全状态checkpoint/dev和最终result核对，不能把首批正常当作完整epoch/G1/G2通过。
+
+### 2026-09-05 / Step 108：运行交接与文档复核
+
+- 关联工作：P0-06/T-05/T-07；仅更新SPEC、独立SFT训练报告、容量报告和A0历史报告的当前导航，不改变tmux内固定 `20b6f05` 的训练代码/config。27份Markdown/27个Mermaid/163个本地链接通过、diff通过；没有提交任何模型、token缓存、原始数据、tmux包或运行日志。
+- 交接检查：tmux pane dead=0，已打印288/3329步训练进度，初始全dev186已验证，最终result尚未完成。作业会按原单epoch协议自动保存并验证；会话remain-on-exit保留终端，不能仅看会话是否存在判断训练成败。所有后续结论必须读取实际checkpoint/dev/result，不把静态报告快照当持续监控。
+- 提交/推送：沿用yynil / yueyu.lin@me.com、个人private main，普通commit/push。隔离开发worktree保留已提交的固定源码以便复核；主工作区整合完成，无旧产物被删除。用户仅需用报告中的完整tmux二进制路径attach，Ctrl-b d可离开而不停止训练；总时长仍估70～90分钟，未启动更大模型或latent作业。
