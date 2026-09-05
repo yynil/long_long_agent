@@ -1,7 +1,7 @@
 # RWKV-7 长 Agent 训练项目规格与执行台账
 
-> 状态：P0 准备阶段 / A0与本机M-02已验收，真实8K两步更新通过 / GPU续步原strict门失败、已确认原生反向波动；完整overfit与G1未通过，规模化训练No-Go<br>
-> 规格版本：0.11.1<br>
+> 状态：P0 准备阶段 / A0与本机M-02已验收，真实8K预检及固定梯度GPU恢复机制通过 / 原strict与独立原生预算门保留失败；完整overfit与G1未通过，规模化训练No-Go<br>
+> 规格版本：0.12.0<br>
 > 创建日期：2026-09-04  
 > 统一入口：[`rwkv7_agent_only_data_training_plan_zh.md`](./rwkv7_agent_only_data_training_plan_zh.md)<br>
 > 设计依据：[原始研究设计正文](docs/research_design_zh.md)
@@ -250,7 +250,7 @@ artifacts/models/<run_id>/
 | P0-03 | 建立 Python/CUDA 依赖锁 | lockfile + 容器定义 | 新环境可完成最小前向 | 进行中：66包distribution hash锁、新环境重建/105项测试/全新CUDA cache前向通过；远程环境待建 |
 | P0-04 | 冻结 held-out 边界 | `data/heldout/*.txt` | 分组规则与污染测试就绪 | 完成：五来源 42,982 group 的 repo/task 90/5/5 hash split、列表校验与 canonical v1.1 接入通过 |
 | P0-05 | 固化数据、训练、评测配置 schema | `schemas/` | CI 可校验所有配置 | 进行中：source registry 与四表 schema 已建立 |
-| P0-06 | 建立跨文档架构图审计基线 | 全部 Markdown 文档；`docs/diagrams/*.png` | 每份文档有精确 Mermaid 图；模型有从系统到源码符号的手绘图并完成链接/图像校验 | 完成：24份文档/24个Mermaid/116个本地链接通过（Step090）；5张手绘图沿用既有视觉、尺寸与hash验收 |
+| P0-06 | 建立跨文档架构图审计基线 | 全部 Markdown 文档；`docs/diagrams/*.png` | 每份文档有精确 Mermaid 图；模型有从系统到源码符号的手绘图并完成链接/图像校验 | 完成：24份文档/24个Mermaid/122个本地链接通过（Step095）；5张手绘图沿用既有视觉、尺寸与hash验收 |
 
 #### 已确认的资源分工
 
@@ -295,7 +295,7 @@ D-09 本轮完成范围是 Step 057 冻结的 Open-SWE 两教师 A0 候选准入
 | M-05 | 实现 V0 latent control/depth embedding | M-04 | latent step 无 LM-head call；K=0 等价 | 完成：短窗可微 recurrence 与真实 0.4B K=0/K=4 验证通过 |
 | M-06 | 实现 action 与多任务 value readout | M-05 | shape、mask、loss 和梯度测试 | 完成：复用 LM head、九任务 value、masked loss 与真实 0.4B 梯度通过 |
 | M-07 | 实现 state cache 与不可变 cache key | M-03 | hash 任一分量变化即 miss | 待办 |
-| M-08 | 数值、吞吐与显存基准 | M-05 | K=0/1/2/4/8 的 profile | 进行中：推理数值及真实8K两步训练峰值约21.04GiB/步耗时已测；padded与K系列端到端成本待测（Step088） |
+| M-08 | 数值、吞吐与显存基准 | M-05 | K=0/1/2/4/8 的 profile | 进行中：真实8K两步及新393监督token更新资源已测；最长监督容量、padded与K系列成本待测（Step094） |
 | M-09 | 实现 packed-varlen RWKV-7 路径 | M-01,M-02 | WKV/TMix/CMix 边界 reset；packed/unpacked 前反向 parity；无跨段串扰 | 进行中：本机 kernel/state-passing parity 与 0.4B 全参数 packed trainer 已通过；SM89/DDP 待验证 |
 
 V1 continuous feedback 只有在 G3 通过后单独立项；不得混入 V0 可行性验证。
@@ -308,10 +308,10 @@ V1 continuous feedback 只有在 G3 通过后单独立项；不得混入 V0 可�
 | T-02 | 复刻官方参数分组、初始化和 decay 规则 | M-01 | 参数名覆盖率 100%，未知参数 fail closed | 完成：0.4B/1.5B base + latent + value 804/804 覆盖；实际 LR/decay 待 tiny overfit 选择 |
 | T-03 | 建立小样本 overfit harness | T-01,T-02,T-10 | 32/128 样本 loss 可预期下降 | 完成（合成机制）：真实32/128输入已准备，另有两步预检通过；完整真实overfit尚未执行（Step088） |
 | T-04 | 建立 M0 四基线评测 harness | D-10,M-02 | 同 snapshot、seed、预算、工具版本 | 进行中：离线真实dev任务的buggy/gold verifier及sandbox预算通过；M-02本机阻塞解除，Agent loop/四基线仍未完成 |
-| T-05 | 建立 M1 Agent SFT 配置 | D-10,T-03 | 配比、loss weight、resume 可复现 | 进行中：真实输入/预检配置与两步全参数更新通过；完整32/128 overfit及原生GPU续步验收待完成（Step088） |
+| T-05 | 建立 M1 Agent SFT 配置 | D-10,T-03 | 配比、loss weight、resume 可复现 | 进行中：真实预检与固定梯度恢复机制通过；独立原生预算门failed，完整32/128 overfit未放行（Step094） |
 | T-06 | 建立 M2 fixed-K curriculum 与 loss | D-12,M-05,T-03 | K sampling、KD/exit/anchor 测试 | 阻塞于 G1 |
-| T-07 | 建立指标、checkpoint 与 run registry | P0-05 | run 可追到代码/数据/模型/hardware | 进行中：真实run manifest/checkpoint与GPU逐值加载通过；原生续步优化器strict门失败，原生反向波动已隔离，ADR-020提议（Step088） |
-| T-08 | 建立失败检测与 stop rules | T-04,T-07 | NaN、OOM、漂移、回归自动中止 | 进行中：预检finite/资源界限与恢复失败停止已落实；完整训练/Agent回归规则待验收（Step088） |
+| T-07 | 建立指标、checkpoint 与 run registry | P0-05 | run 可追到代码/数据/模型/hardware | 进行中：GPU加载及固定梯度恢复机制逐位一致；旧strict与独立原生预算门failed，须新独立协议；完整overfit/原生恢复未放行（Step094） |
+| T-08 | 建立失败检测与 stop rules | T-04,T-07 | NaN、OOM、漂移、回归自动中止 | 进行中：预检finite/资源与独立原生预算越界停止已验证，失败完整保留；完整训练/Agent回归规则待验收（Step094） |
 | T-09 | 预登记 G1/G2/G3 阈值 | M0 开发 pilot | G1 阈值早于独立确认实验，G2/G3 早于各自主实验 | 进行中：用户接受 ADR-018，等待 pilot |
 | T-10 | 实现 episode-aware packed collator | D-10,T-01,M-09 | `cu_seqlens`/start/loss mask 一致；尾部对齐≤15；token 利用率报告 | 完成：decision→sampler→collator→0.4B trainer 闭环与真实来源利用率画像通过；A0 全量 profile 转入 D-10/M-08 |
 
@@ -404,7 +404,7 @@ Sprint 0 结束定义：G0 全部满足，且能够用一个极小的 synthetic 
 | ADR-017 | 2026-09-05 | 收紧 ADR-009：decision window 必须保留任务契约、当前必要 observation 和成对工具交互；最小充分上下文超限时拒绝并计数 | Step 053 复现现有裁剪可删除全部任务/observation、仍监督 assistant；这会损坏 action 的条件信息，须在 A0 前解决 | 已接受：用户要求按审查建议完成步骤 1～4 |
 | ADR-018 | 2026-09-05 | M0 分为开发集基座诊断与独立确认实验；必要时在 G1 前做受限的 Agent 格式 SFT，再用同一 SFT checkpoint 比较 no/short/long-think；G1 数值门槛必须早于确认实验冻结 | 避免把格式失败误判为 thinking 无效，以及用确认结果反推 G1 阈值 | 已接受：用户要求按审查建议完成步骤 1～4；G1 仍是 paired 规模化与 M2 的前置门 |
 | ADR-019 | 2026-09-05 | 将 M-02 验收分为“同矩阵形状的严格 recurrence 等价”和“原生部署形状的数值漂移/行为验收”，在独立提示集与长窗上重新事前冻结后者阈值；训练保留官方路径，部署默认不做矩阵行填充 | Step061～063同形状逐值等价；Step074～075精度干预确认BF16形状/reduction舍入原因；原失败保留 | 已接受：用户“如果是bf16的原因，可以继续推进不需要确认”；Step078本机独立工程确认通过。非真实Agent/G1通过，不自动扩大训练 |
-| ADR-020 | 2026-09-05 | T-07区分逐值保存/加载、固定梯度optimizer续步和原生反向噪声下的续步验收；新数值预算须在独立确认前冻结，保留原exact失败 | Step087～088：恢复点全部exact；无再次恢复的3次反向仍有微小梯度波动，相关官方归约使用FP32 atomicAdd再转BF16 | 已接受协议框架（Step089）：用户继续授权及既有BF16条件授权；须通过三层独立确认，不自动放行overfit或改变官方CUDA |
+| ADR-020 | 2026-09-05 | T-07区分逐值保存/加载、固定梯度optimizer续步和原生反向噪声下的续步验收；新数值预算须在独立确认前冻结，保留原exact失败 | Step087～088：恢复点全部exact；无再次恢复的3次反向仍有微小梯度波动，相关官方归约使用FP32 atomicAdd再转BF16 | 已接受框架（Step089）；Step094固定梯度机制exact，但独立原生预算门failed，后续新预算须重新事前登记；不放行overfit |
 
 ## 12. 执行日志
 
@@ -1302,3 +1302,17 @@ Sprint 0 结束定义：G0 全部满足，且能够用一个极小的 synthetic 
 - 质量修订：optimizer比较器只按明确None名单允许惰性moment；master仍比较全参数，moment分母单独保留，有效moment缺失仍拒绝。新增回归测试及diagnostic config/manifest未知字段、source协议hash拒绝测试。未改官方trainer/kernel，未重跑失败协议。
 - 执行前提交实现；入口为 `scripts/diagnose_a0_fixed_gradient_resume.py --run-root <data root>/artifacts/training_preflight/fixed_gradient_diagnostic_v1 --phase capture|replay`，固定重建环境/LM/CUDA/build同Step085。capture不完整则拒绝replay；每进程只一次有界optimizer更新，任何非exact不扩大训练。
 - 实验前验证：全仓130 tests通过（4.57s）、Ruff check/format通过（126文件）、diff检查通过。新schema与梯度无别名/完整hash/惰性moments校验均有测试；旧协议及source SHA未变。
+
+### 2026-09-05 / Step 094：固定梯度GPU恢复诊断通过，原生门保持失败
+
+- 关联工作：T-07/T-05/T-08、M-08，ADR-020；固定实现 `c7d8f6cdd69cc27884ec6c3edbe3b1c13609a9e1` 已推送，依Step093命令独立运行capture与replay，均为diagnostic_complete。配置、source manifest/result及checkpoint全部通过SHA校验，数据/模型/官方CUDA未变化。
+- 精确证据：两个进程加载点全部指纹与source step1相同，RNG probe/下一batch相同。捕获及重放梯度内部hash `c93b5da0d834c67881bb5bbf4ee0ccc84f8581ab8fabbef3dbba4fc54aa2bdb0` 相同，梯度文件SHA `b7a52ec6c197e4842d5f31346196d20f054b2742148113baf39b8378beba71ff`；最终模型、完整FP32优化器及RNG逐位相同。replay不反向，trainer/sampler保持第1步；不把optimizer-only伪装成train_step。
+- 资源/分母：全模型798张量/450,834,432参数；capture真实6643 input、393 loss、13 alignment tokens，loss0.3693450689、norm47.75、1.2545s、peak20,335,908,864 bytes；replay仅optimizer更新0.03294s、peak9,016,163,840 bytes，不含加载/校验/IO。None梯度为首层v0/v1/v2，与固定官方model.py第619～627行首层不调用value-residual参数一致。
+- 产物：新报告 `reports/gpu_resume_confirmation.md` 和机器汇总 `reports/gpu_resume_confirmation_summary.json`。capture/replay原始result SHA分别 `0de114595ef02e9117d17587cf6c4d3e57feb915af09c65fda87ebd7336c2091` / `59137d07cbd975bad51ddac2886066a9dfba2c96e8f099ed99ca67779655eecd`；完整source/诊断checkpoint、梯度及旧失败保留在data root，不进Git。
+- 结论边界：本机固定梯度机制通过，不等于原生独立确认通过。Step092失败不重判，不执行其native后续phase；下一步需制定BF16尺度感知、完整源码参数族的新事前协议，在新train任务独立确认，之后才是最坏监督容量/padded与完整32→128 overfit。T-07/T-05继续进行中，M0/G1/规模化训练未放行。GPU进程全部退出、0MiB。
+
+### 2026-09-05 / Step 095：独立报告、导航与交付复核
+
+- 关联工作：P0-00/P0-06、T-05/T-07/T-08、M-08；SPEC版本0.12.0记录ADR-020框架及实际失败/诊断结果，未修改原配置的任一数值阈值。详细协议、4次运行的完整分母和限制放在独立恢复报告/机器汇总；统一入口、README及A0报告仅链接，数据报告职责不变。
+- 最终验证：全仓130 tests通过（4.53s）、Ruff check/format通过（126文件）、diff检查通过；24份Markdown/24个Mermaid/122个本地链接通过。机器汇总的4个原始result SHA、3个manifest SHA、4个执行commit和2个配置SHA全部复核一致，独立source manifest通过闭合schema复验。
+- 交付：只提交代码、配置、schema、测试、Markdown及小型JSON汇总，诊断模型/梯度/source checkpoint和失败日志留在data root，未删除任何旧材料。沿用 yynil / yueyu.lin@me.com 身份及既有个人private main，普通commit/push，不改变可见性。下一步仍为新原生确认协议和新train任务，不直接执行较长overfit或规模化训练。

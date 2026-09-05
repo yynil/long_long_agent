@@ -1,6 +1,6 @@
 # GPU 恢复三层独立确认（ADR-020）
 
-日期：2026-09-05。状态：新任务的无恢复对照超过冻结预算，独立原生确认停止；固定梯度机制另立有界诊断，不改写失败。
+日期：2026-09-05。状态：**固定梯度恢复机制逐位一致；独立原生确认仍失败**。新任务无恢复对照超过冻结预算，未放行较长训练；[机器汇总与原始报告SHA](gpu_resume_confirmation_summary.json)保留全部运行及失败。
 
 [统一入口](../rwkv7_agent_only_data_training_plan_zh.md) · [原预检与失败证据](real_a0_training_preflight.md) · [执行台账](../SPEC.md)
 
@@ -73,3 +73,15 @@ optimizer step、参数映射和超参数严格一致；所有参数及moment完
 capture/replay两个独立进程均加载同一step1；加载点的模型/master/moments/计数/RNG及sampler、随机probe和下一batch必须与source逐位一致。capture只做1次真实更新并冻结实际clipped梯度G；replay不反向，只重放G做optimizer.step。要求最终BF16模型、完整FP32优化器和RNG与capture逐位一致；replay的trainer/sampler保持原第1步，明确它没有执行新的train_step。完整成功/失败checkpoint与梯度保留，不进Git。
 
 本项完成也只隔离checkpoint/optimizer机制；本次独立原生确认仍failed。下一步需先制定新的原生确认协议（考虑BF16表示尺度和完整源码参数族，保留现有失败，使用新的未测train任务），之后才允许容量/padded/32→128 overfit。G1与规模化训练仍未通过。
+
+诊断已完成（commit `c7d8f6c`）：capture/replay均为`diagnostic_complete`，不是新原生门的`passed`。两进程在加载点的所有指纹、RNG probe和下一batch全同；重放梯度hash全同；最终BF16模型、完整FP32 master/moments及RNG逐位相同。replay的trainer/sampler保持第1步，避免伪造训练计数。由此排除本对照中checkpoint/optimizer恢复机制是差异来源，不能推广为所有模型/平台/长作业恢复已验证。
+
+capture更新6643 input /393 loss tokens，loss0.3693450689、norm47.75、1.255s、peak20,335,908,864 bytes（约18.94GiB）。replay只有optimizer更新，0次反向，0.033s、peak9,016,163,840 bytes；此计时不含加载/hash/IO，不能与完整训练步吞吐等同。两进程均退出，GPU显存0MiB。
+
+3个None梯度为`blocks.0.att.v0/v1/v2`。固定官方`train_temp/src/model.py:619–627`的首层分支直接保存`v_first=v`，只有后续层调用这些value-residual参数。这是合法的官方计算图，不是冻结参数或漏掉参数组。
+
+## 6. 下一步的最小范围
+
+1. 在新的原生确认协议中，基于BF16表示尺度（例如ULP或尺度归一化误差）定义梯度预算，完整列明源码中的原子归约参数族；仍保留FP32 master/moments、模型/计数/RNG各自的约束。**本报告不预先接受具体新阈值**。
+2. 用未参与上述诊断的新train任务、固定seed，在GPU前提交协议；保留无恢复对照、原生恢复分支和失败停止，不因本次固定梯度成功自动通过原生门。
+3. 原生门通过后再测最长监督目标容量与可比padded baseline，事前登记完整32→128 overfit的步数/下降目标；之后接真实Agent loop和M0开发pilot，不越过G1。

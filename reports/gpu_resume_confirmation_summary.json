@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "purpose": "adr020_resume_confirmation_summary",
+  "date": "2026-09-05",
+  "native_confirmation_passed": false,
+  "fixed_gradient_mechanism_exact": true,
+  "full_32_128_overfit_executed": false,
+  "g1_passed": false,
+  "confirmation_config_sha256": "5e04fb87d2782494a4669073cfee4000c8e494cbcee062c1a26733997ad6bd5d",
+  "diagnostic_config_sha256": "ad18735ada533b88c07ae50aecaa8586fd3352b4ec7e5e8e1153a5f0ecfbcbbe",
+  "artifact_root": "artifacts/training_preflight",
+  "runs": [
+    {
+      "directory": "adr020_independent_v1/reference",
+      "code_commit": "a55ef8aed35044ab429fe51bfe9714d12ff31adb",
+      "status": "failed",
+      "stage": "inputs",
+      "optimizer_updates": 0,
+      "result_sha256": "52aba288ab51a1f64a6f888cc0a85433f5aafb76fd72eae9481a43e2e37c5d4d"
+    },
+    {
+      "directory": "adr020_independent_v2/reference",
+      "code_commit": "87a26b9d5907cd1e7401b18231053274d70e609b",
+      "status": "failed",
+      "stage": "no_update_controls",
+      "optimizer_updates": 1,
+      "completed_control_backwards": 2,
+      "planned_control_backwards": 3,
+      "different_gradient_tensors": 47,
+      "different_gradient_elements": 54,
+      "active_gradient_tensors": 795,
+      "active_gradient_elements": 450767872,
+      "max_gradient_abs": 0.000030517578125,
+      "max_gradient_relative_l2": 0.000145823091905175,
+      "failed_checks": ["max_abs", "unexpected_parameter_family"],
+      "manifest_sha256": "7e4a68ea1bced1bd43994d3731931af901dd571aeaf4fecf6b6cab9e36fd84bf",
+      "result_sha256": "6f9472286a49674fface9c043a650e34267ad3f7caf164c1146df619f0f8c533"
+    },
+    {
+      "directory": "fixed_gradient_diagnostic_v1/capture",
+      "code_commit": "c7d8f6cdd69cc27884ec6c3edbe3b1c13609a9e1",
+      "status": "diagnostic_complete",
+      "optimizer_updates": 1,
+      "backward_calls": 1,
+      "real_tokens": 6643,
+      "loss_tokens": 393,
+      "alignment_tokens": 13,
+      "loss": 0.3693450689315796,
+      "gradient_norm": 47.75,
+      "update_seconds": 1.2545384471304715,
+      "peak_allocated_bytes": 20335908864,
+      "inactive_gradient_parameters": ["blocks.0.att.v1", "blocks.0.att.v2", "blocks.0.att.v0"],
+      "gradient_file_sha256": "b7a52ec6c197e4842d5f31346196d20f054b2742148113baf39b8378beba71ff",
+      "manifest_sha256": "f5afcf19e4e73f0c98f49bb3b8d7c4b047343de29dd26cc28eaf2accb4ef4b19",
+      "result_sha256": "0de114595ef02e9117d17587cf6c4d3e57feb915af09c65fda87ebd7336c2091"
+    },
+    {
+      "directory": "fixed_gradient_diagnostic_v1/replay",
+      "code_commit": "c7d8f6cdd69cc27884ec6c3edbe3b1c13609a9e1",
+      "status": "diagnostic_complete",
+      "optimizer_updates": 1,
+      "backward_calls": 0,
+      "optimizer_only_seconds": 0.03294296097010374,
+      "peak_allocated_bytes": 9016163840,
+      "load_exact": true,
+      "installed_gradient_exact": true,
+      "model_exact": true,
+      "fp32_optimizer_exact": true,
+      "rng_exact": true,
+      "trainer_and_sampler_not_advanced": true,
+      "manifest_sha256": "30f114c6819fa96db4c57c4c7a2c82f1d4c888ecfa633da283f67eb21f72d171",
+      "result_sha256": "59137d07cbd975bad51ddac2886066a9dfba2c96e8f099ed99ca67779655eecd"
+    }
+  ],
+  "limitations": [
+    "Both fixed-gradient diagnostic processes load the same source point; no claim of native-backward exactness.",
+    "Old exact and independent native-budget failures remain failed; no retrospective threshold change.",
+    "Local SM86 0.4B only; worst supervision length, padded timing, full overfit, SM89/DDP and Agent outcomes remain unverified."
+  ]
+}
