@@ -165,5 +165,6 @@ def load_runtime(role: str, lm_tree: Path, cuda_tree: Path, build_root: Path):
         "cuda": torch.version.cuda,
         "device": torch.cuda.get_device_name(),
         "runtime_environment": environment,
+        "short_inference_bf16_matmul_rows": "native; alignment is diagnostic-only",
     }
     return network, RWKVByteTokenizer(vocabulary), provenance

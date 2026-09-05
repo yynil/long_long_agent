@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object", "additionalProperties": false,
+  "required": ["schema_version", "purpose", "task_source_revision", "task_file_sha256", "instance_id", "repo", "base_commit", "repo_license", "split", "image", "image_digest", "normalized_image_digest", "harness_revision", "network", "memory_bytes", "tasks_max", "cpu_percent", "command_wall_seconds", "output_bytes"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "purpose": {"const": "executable_environment_plumbing_only_not_m0"},
+    "task_source_revision": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+    "task_file_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "instance_id": {"type": "string", "minLength": 1},
+    "repo": {"type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"},
+    "base_commit": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+    "repo_license": {"enum": ["MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause"]},
+    "split": {"const": "dev"},
+    "image": {"type": "string", "pattern": "^docker.io/swerebenchv2/[a-z0-9_.-]+$"},
+    "image_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "normalized_image_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "harness_revision": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+    "network": {"const": "none"},
+    "memory_bytes": {"type": "integer", "minimum": 1},
+    "tasks_max": {"type": "integer", "minimum": 1},
+    "cpu_percent": {"type": "integer", "minimum": 1},
+    "command_wall_seconds": {"type": "integer", "minimum": 1},
+    "output_bytes": {"type": "integer", "minimum": 1}
+  }
+}

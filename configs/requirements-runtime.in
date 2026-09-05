@@ -1,0 +1,5 @@
+-r requirements-train-cu130.txt
+pyarrow==23.0.1
+jsonschema==4.26.0
+pytest==9.1.1
+ruff==0.16.6

@@ -8,6 +8,7 @@ from dataclasses import dataclass
 
 import torch
 
+from .inference_math import inference_linear
 from .rwkv7_stateful import stateful_forward
 
 
@@ -71,7 +72,7 @@ def generate(
     for offset in range(0, len(prefix), 128):
         chunk = torch.tensor([prefix[offset : offset + 128]], device=device)
         hidden, next_state = stateful_forward(network, chunk, state=next_state, return_logits=False)
-        logits = network.head(hidden[:, -1:])
+        logits = inference_linear(network.head, hidden[:, -1:])
     output, raw = [], bytearray()
     stop_reason = "token_budget"
     for _ in range(config.max_new_tokens):

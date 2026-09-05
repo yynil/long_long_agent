@@ -1,0 +1,9 @@
+{
+  "default": [{"type": "reject"}],
+  "transports": {
+    "oci": {"": [{"type": "insecureAcceptAnything"}]},
+    "docker": {
+      "docker.io/swerebenchv2": [{"type": "insecureAcceptAnything"}]
+    }
+  }
+}

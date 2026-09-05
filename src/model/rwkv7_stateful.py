@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib
 from typing import Any
 
+from .inference_math import inference_linear, inference_matmul
 from .state import RWKVLayerState, RWKVState, RWKVStateSpec
 
 CHUNK_LEN = 16
@@ -239,17 +240,21 @@ def time_mix_forward(
     xa = x + difference * layer.x_a
     xg = x + difference * layer.x_g
 
-    r = layer.receptance(xr)
-    w = layer.w0 + model_module.torch.tanh(xw @ layer.w1) @ layer.w2
-    k = layer.key(xk)
-    v = layer.value(xv)
+    r = inference_linear(layer.receptance, xr)
+    w = layer.w0 + inference_matmul(
+        model_module.torch.tanh(inference_matmul(xw, layer.w1)), layer.w2
+    )
+    k = inference_linear(layer.key, xk)
+    v = inference_linear(layer.value, xv)
     if layer.layer_id == 0:
         v_first = v
     else:
-        v12 = (xv @ layer.v1) @ layer.v2
+        v12 = inference_matmul(inference_matmul(xv, layer.v1), layer.v2)
         v = model_module.tmix_vres_gate_bf16_v3(v, v_first, layer.v0, v12)
-    a = model_module.tmix_a_gate_bf16(layer.a0, (xa @ layer.a1) @ layer.a2)
-    g = model_module.torch.sigmoid(xg @ layer.g1) @ layer.g2
+    a = model_module.tmix_a_gate_bf16(
+        layer.a0, inference_matmul(inference_matmul(xa, layer.a1), layer.a2)
+    )
+    g = inference_matmul(model_module.torch.sigmoid(inference_matmul(xg, layer.g1)), layer.g2)
     k, negative_kk, kka = model_module.tmix_kk_pre_bf16_v5(
         k, layer.k_k.view(-1), a, layer.k_a.view(-1)
     )
@@ -273,7 +278,7 @@ def time_mix_forward(
         layer.ln_x.bias,
         g,
     )
-    output = layer.output(mixed)
+    output = inference_linear(layer.output, mixed)
     next_state = RWKVLayerState(
         time_mix_previous_x=final_previous_x,
         wkv_matrix=final_wkv,
@@ -290,8 +295,8 @@ def channel_mix_forward(layer: Any, x: Any, state: RWKVLayerState, sequence_star
         x, state.channel_mix_previous_x, sequence_start_mask
     )
     key = x + difference * layer.x_k
-    key = torch.relu(layer.key(key)) ** 2
-    output = layer.value(key)
+    key = torch.relu(inference_linear(layer.key, key)) ** 2
+    output = inference_linear(layer.value, key)
     return output, RWKVLayerState(
         time_mix_previous_x=state.time_mix_previous_x,
         wkv_matrix=state.wkv_matrix,
@@ -372,4 +377,4 @@ def stateful_forward(
         sequence_start_mask,
         detach_state=detach_state,
     )
-    return (network.head(hidden) if return_logits else hidden), next_state
+    return (inference_linear(network.head, hidden) if return_logits else hidden), next_state

@@ -246,7 +246,7 @@ artifacts/models/<run_id>/
 | P0-00 | 恢复有效 Git worktree | 可用的 Git metadata | 代码 commit 与 dirty diff 可追溯 | 完成：基线 bd97830 已推送 yynil/long_long_agent 私有仓库 |
 | P0-01 | 固定 checkpoint 与代码 revision | `configs/base_model.yaml` | 所有 revision 非浮动且文件 hash 可复算 | 完成：代码/tokenizer/kernel/checkpoint 均已落盘复核 |
 | P0-02 | 盘点 GPU/CUDA/磁盘/网络/调度器 | `reports/environment.md` | 能估算 M0/M1 所需资源 | 完成 |
-| P0-03 | 建立 Python/CUDA 依赖锁 | lockfile + 容器定义 | 新环境可完成最小前向 | 进行中：本机数据/训练环境与 CUDA smoke 已通过，远程环境待建 |
+| P0-03 | 建立 Python/CUDA 依赖锁 | lockfile + 容器定义 | 新环境可完成最小前向 | 进行中：66包distribution hash锁、新环境重建/102项测试/全新CUDA cache前向通过；远程环境待建 |
 | P0-04 | 冻结 held-out 边界 | `data/heldout/*.txt` | 分组规则与污染测试就绪 | 完成：五来源 42,982 group 的 repo/task 90/5/5 hash split、列表校验与 canonical v1.1 接入通过 |
 | P0-05 | 固化数据、训练、评测配置 schema | `schemas/` | CI 可校验所有配置 | 进行中：source registry 与四表 schema 已建立 |
 | P0-06 | 建立跨文档架构图审计基线 | 全部 Markdown 文档；`docs/diagrams/*.png` | 每份文档有精确 Mermaid 图；模型有从系统到源码符号的手绘图并完成链接/图像校验 | 完成：15 份文档各含可解析 Mermaid；5 张 ImageGen 手绘图完成视觉、链接、尺寸与 hash 校验 |
@@ -284,7 +284,7 @@ artifacts/models/<run_id>/
 | ID | 任务 | 依赖 | 产物/检查 | 状态 |
 |---|---|---|---|---|
 | M-01 | 镜像官方 RWKV-7 训练实现并记录差异 | P0-01 | upstream pin + patch series | 完成：upstream pin、兼容性报告与三份 patch 已验证 |
-| M-02 | 复现基座 tokenizer、前向与生成 | M-01,P0-03 | golden logits/generation；显存报告 | 进行中：固定 tokenizer 实现、真实词表 round-trip 与两模型短前向通过；generation/full-vs-RNN parity 待办 |
+| M-02 | 复现基座 tokenizer、前向与生成 | M-01,P0-03 | golden logits/generation；显存报告 | 阻塞：原生BF16不同矩阵形状的KL未通过；同形状两模型逐值等价，等待ADR-019验收协议决策 |
 | M-03 | 实现 state tree 的 serialize/clone/restore | M-02 | dtype/device/shape 校验；数值 round-trip | 完成：完整三类层状态、可微 continuation、真实 0.4B 与序列化验证通过 |
 | M-04 | 实现 slow/fast 双状态容器 | M-03 | fast mutation 不污染 slow 的单测 | 完成：决策级所有权、无别名 clone 与真实 0.4B 推进验证通过 |
 | M-05 | 实现 V0 latent control/depth embedding | M-04 | latent step 无 LM-head call；K=0 等价 | 完成：短窗可微 recurrence 与真实 0.4B K=0/K=4 验证通过 |
@@ -302,7 +302,7 @@ V1 continuous feedback 只有在 G3 通过后单独立项；不得混入 V0 可�
 | T-01 | 定义只覆盖 assistant/action 的 label mask | D-04,M-02 | token 级 mask golden test | 完成：角色/action 权重、source mask、跨 region token 和边界 target golden test 通过 |
 | T-02 | 复刻官方参数分组、初始化和 decay 规则 | M-01 | 参数名覆盖率 100%，未知参数 fail closed | 完成：0.4B/1.5B base + latent + value 804/804 覆盖；实际 LR/decay 待 tiny overfit 选择 |
 | T-03 | 建立小样本 overfit harness | T-01,T-02,T-10 | 32/128 样本 loss 可预期下降 | 完成：固定 0.4B 全参数、FP32-master、packed 32/128 合成 Agent 决策稳定下降 |
-| T-04 | 建立 M0 四基线评测 harness | D-10,M-02 | 同 snapshot、seed、预算、工具版本 | 待办 |
+| T-04 | 建立 M0 四基线评测 harness | D-10,M-02 | 同 snapshot、seed、预算、工具版本 | 进行中：离线真实dev任务的buggy/gold verifier及sandbox预算通过；Agent loop/四基线未验收，阻塞于M-02 |
 | T-05 | 建立 M1 Agent SFT 配置 | D-10,T-03 | 配比、loss weight、resume 可复现 | 待办 |
 | T-06 | 建立 M2 fixed-K curriculum 与 loss | D-12,M-05,T-03 | K sampling、KD/exit/anchor 测试 | 阻塞于 G1 |
 | T-07 | 建立指标、checkpoint 与 run registry | P0-05 | run 可追到代码/数据/模型/hardware | 进行中：单进程 model/FP32-master/optimizer/RNG/sampler 恢复测试通过；真实 run registry 待验收 |
@@ -398,6 +398,7 @@ Sprint 0 结束定义：G0 全部满足，且能够用一个极小的 synthetic 
 | ADR-016 | 2026-09-05 | 对 ADR-001 的只读原则作窄范围例外：允许在原始训练计划顶部追加非规范架构图，但不得改写任何既有设计正文 | 用户明确要求每份文档都有图；图只提供导航且已声明实现状态以 SPEC 为准，因而不改变研究设计口径 | 已接受 |
 | ADR-017 | 2026-09-05 | 收紧 ADR-009：decision window 必须保留任务契约、当前必要 observation 和成对工具交互；最小充分上下文超限时拒绝并计数 | Step 053 复现现有裁剪可删除全部任务/observation、仍监督 assistant；这会损坏 action 的条件信息，须在 A0 前解决 | 已接受：用户要求按审查建议完成步骤 1～4 |
 | ADR-018 | 2026-09-05 | M0 分为开发集基座诊断与独立确认实验；必要时在 G1 前做受限的 Agent 格式 SFT，再用同一 SFT checkpoint 比较 no/short/long-think；G1 数值门槛必须早于确认实验冻结 | 避免把格式失败误判为 thinking 无效，以及用确认结果反推 G1 阈值 | 已接受：用户要求按审查建议完成步骤 1～4；G1 仍是 paired 规模化与 M2 的前置门 |
+| ADR-019 | 2026-09-05 | 提议将 M-02 验收分为“同矩阵形状的严格 recurrence 等价”和“原生部署形状的数值漂移/行为验收”，在独立提示集与长窗上重新事前冻结后者阈值；训练保留官方路径，部署默认不做矩阵行填充 | Step 061～063 原门失败，但固定 GEMM 形状后两模型逐值等价；BF16 GEMV/GEMM 本身依赖形状。直接放宽旧门或把诊断样本当新确认均不合规 | 提议，等待用户确认；原 v1/v2/v3 失败记录和阈值保留，M0/长训练继续暂停 |
 
 ## 12. 执行日志
 
@@ -1027,3 +1028,25 @@ Sprint 0 结束定义：G0 全部满足，且能够用一个极小的 synthetic 
 - 验证：全仓98 passed（4.09 s），Ruff通过。重新冻结实现 commit 后使用新 admission 路径 v2，旧首轮中断不是数据准入失败，也不宣称 A0 已完成。
 - 数值诊断补充：1.5B v1也未通过 KL（最坏mean≈0.01758、p95≈0.05412），prefill/K0/重复一致。0.4B v2官方短CUDA仍未通过，排除了“仅修WKV即可消除漂移”的假设。hook定位第0层 receptance/key/value 的首 token 已有差异；切换 BF16 reduced-precision reduction 不能稳定修复（只读临时实验，不改变正式运行配置）。
 - 环境：直连 Docker registry 超时；使用格式正确的本机 HTTP proxy 后 inspect成功，证明镜像可访问。检查镜像尚未下载。SWE-rebench harness 已 checkout 固定 commit，未运行其中生成/标注/外部API脚本。
+
+### 2026-09-05 / Step 063：完成数值原因隔离并重建训练依赖环境
+
+- 关联工作：M-02/M-08、P0-03、T-04；决策提议 ADR-019。
+- 原因证据：第0层 receptance 的输入逐值相同，单行输出与16行输出39.36%元素差一个或少数 BF16 ULP；将独立矩阵行补至16后该层与16行基准完全一致。固定16行的 v3 仅解决16-token case，32/64仍失败，故未纳入部署默认。
+- 进一步隔离：`scripts/diagnose_generation_math.py` 分别用0.4B、1.5B，将单token点运算的矩阵行数匹配各自16/32/64/128官方基准，8组logits全部逐值相同（RMS/KL=0、top1=1）。官方CUDA whole-vs-single WKV在非零初始状态及位置13 reset时output和final state也逐值相同。
+- 边界：上述是因果隔离，不是原验收通过。矩阵行对齐只放在显式 diagnostic context 中，默认仍原生形状；不修改冻结训练路径、不将补齐矩阵行当latent step、不把fast state写回slow。
+- 产物：data root 下 `generation_math_smoke_v1.json`、`generation_math_local_v0_v1.json`；原 `generation_parity_*_v1/v2/v3.json`均保留。提议ADR-019后，等待验收协议决策，不开展真实长训练、M0或M2。
+- 依赖：由精确版本输入生成 `configs/requirements-runtime-cu130.lock`（66 packages及distribution SHA），用 `uv pip sync --require-hashes` 在 `/home/yueyulin/data/long_long_agent/envs/train-rebuild-cu130` 新建Python3.11.15环境，全部安装成功。cache也在data root。尚待新环境测试与新CUDA build cache smoke；远程SM89仍未验收。
+- 环境fixture计划：从固定元数据 dev/Python `adamchainz/flake8-comprehensions` 7条任务中按seed20260905/task ID hash选定179号，只验证sandbox/verifier，不计M0。`configs/environment_fixture.yaml`固定base、许可与OCI digest `069abfc4...b75d1`；后续下载仅此1个镜像。
+- 隔离设计：bwrap清空环境、无网络、只读rootfs、独立项目副本、无host home/SSH/socket/GPU；systemd用户cgroup限制MemoryMax/Swap/TasksMax/CPUQuota/RuntimeMax。`systemd-run`受限true命令通过。禁止把镜像内完整Git历史暴露给Agent副本，以免未来commit泄漏gold patch。
+
+### 2026-09-05 / Step 064：真实离线环境fixture与新环境验证通过
+
+- 关联工作：P0-03、T-04/T-08；不是 M0 结果，不启动 Agent。
+- 环境重建：新Python环境102项测试通过，独立 `torch_extensions_rebuilt` 目录从源码编译全部CUDA扩展；0.4B同形状16/32/64/128前向和WKV状态/reset诊断复现全部逐值相同，结果在 `generation_math_rebuilt_smoke_v1.json`。本机依赖锁重建有证据，远程SM89/DDP尚无。
+- 镜像过程：第一次copy因父目录不存在失败，创建指定environments目录后按原digest下载成功。`--preserve-digests`保留Docker v2 manifest，而umoci拒绝该media type；保留原副本，再用skopeo本地转换为OCI manifest `483ed14b17a3c1e0f5b68832ec974302d2ac0b8e53cfd1ea1861aed683356950`。全部layer digest逐项相同，compressed bytes=776,682,740；记录原/转换两个digest，未重新选择镜像。
+- rootless unpack通过，umoci metadata SHA `f3d0207c6f25418e1f13af74bdad1e02eaaf332aecaff14b9a0b4a23ed610e24`。运行前核对descriptor、base commit、heldout split和固定harness revision；工作副本重新初始化Git，不复制镜像内原Git历史。
+- 失败记录：首次sandbox因`--disable-userns`要求显式`--unshare-user`退出；修正后base identity通过。fixture v1因为只读rootfs上没有`/verification` mountpoint导致setup失败；修正为tmpfs内`/tmp/verification`，不改镜像rootfs，保留v1报告。
+- fixture v2：buggy 1/1目标测试失败、65/65既有测试通过、missing=0/regression=0，10.35 s；gold 1/1目标和65/65既有测试通过、官方exact passed-set匹配、exit0，10.27 s。结果 `artifacts/environment_fixture_flake8_179_v2.json`（data root）。未把gold补丁当模型输出，也没有向任何Agent暴露验证目录。
+- 额外边界测试：host home/SSH socket/验证目录不可见，网络namespace与host不同，`/etc`写入拒绝；100KB输出在1KB限额下中止；sleep10在2s RuntimeMax下2.23s退出。所有namespace/cgroup保护保持开启。
+- 状态：环境与verifier的最小链路通过，T-04仍未完成；M-02阻塞，ADR-019仍为提议。A0审计继续按原准入规则运行。
